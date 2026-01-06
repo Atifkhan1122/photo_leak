@@ -85,7 +85,7 @@
                     `LAT: ${loc.lat} | LNG: ${loc.lng} <br> TIME: ${loc.last_seen || 'N/A'}`;
                 
                 // 1{loc.lat} ko theek karke standard Google Maps link banaya
-                const mapUrl = "https://maps.google.com/maps?q=" + loc.lat + "," + loc.lng + "&z=15&output=embed";
+                const mapUrl = `https://maps.google.com/maps?q=${loc.lat},${loc.lng}&z=15&output=embed`;
                 document.getElementById('map').src = mapUrl;
             }
         });
@@ -120,3 +120,4 @@
 </script>
 </body>
 </html>
+
