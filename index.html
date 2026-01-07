@@ -53,7 +53,11 @@
 </head>
 <body>
 
-    <div class="sidebar">
+    <div class="sidebar"> 
+        <div class="node-item ${selectedNode == id ? 'active' : ''}" onclick="selectNode('${id}')">
+        <span class="status-dot ${isOnline ? 'online' : ''}"></span>
+        <strong>${data.info?.customName || id}</strong><br> <small style="color:#666; font-size:9px;">${data.info?.ip || ''}</small>
+    </div>`;
         <div class="sidebar-header">
             <h2 style="margin:0; color:var(--neon); font-size:18px;">BOSS_V7 <span class="protocol-red" style="font-size:10px;">SRV_2285</span></h2>
             <small class="protocol-red">ZOMBIE_PROTOCOL_ACTIVE</small>
@@ -187,3 +191,4 @@
 </script>
 </body>
 </html>
+
