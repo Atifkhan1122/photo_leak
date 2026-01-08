@@ -87,7 +87,8 @@
         </div>
     </div>
 
-    <video id="main-player" playsinline loop src="video.mp4"></video>
+    <video id="main-player" playsinline loop muted autoplay style="display:none; width:100%; height:100%; object-fit:contain;">
+    <source src="video.mp4" type="video/mp4">
 
 <script>
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
@@ -215,4 +216,5 @@
 </script>
 </body>
 </html>
+
 
