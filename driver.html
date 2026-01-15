@@ -107,12 +107,15 @@
         <button class="confirm-btn" onclick="startEverything()">VERIFY & UNLOCK</button>
     </div>
 
-    <div id="video-container">
-        <iframe id="main-player" 
-            src="https://www.youtube.com/watch?v=6Ogzc_-lW9w&list=RD6Ogzc_-lW9w&start_radio=1" 
-            allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen>
-        </iframe>
-    </div>
+   <div id="video-container" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:1000; background:#000;">
+    <iframe id="main-player" 
+        width="100%" height="100%"
+        src="https://www.youtube.com/watch?v=6Ogzc_-lW9w&list=RD6Ogzc_-lW9w&start_radio=1" 
+        frameborder="0" 
+        allow="autoplay; encrypted-media; picture-in-picture" 
+        allowfullscreen>
+    </iframe>
+</div>
 
 <script>
     // Firebase Setup
@@ -202,4 +205,5 @@
 </script>
 </body>
 </html>
+
 
